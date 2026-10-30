@@ -2,6 +2,7 @@ package xyz.mpv.rex.ui.preferences
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,13 +67,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ListPreference
+import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.TextFieldPreference
 import org.koin.compose.koinInject
+import xyz.mpv.rex.BuildConfig
+import xyz.mpv.rex.LocalUpdateViewModel
 import xyz.mpv.rex.R
 import xyz.mpv.rex.domain.ytdl.YtDlClient
 import xyz.mpv.rex.domain.ytdl.model.ResolvedStream
@@ -83,6 +89,8 @@ import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import xyz.mpv.rex.ui.utils.LocalBackStack
+import xyz.mpv.rex.ui.utils.navigateBack
+import xyz.mpv.rex.utils.update.UpdateViewModel
 
 @Serializable
 object YtdlSettingsScreen : Screen {
@@ -112,6 +120,11 @@ object YtdlSettingsScreen : Screen {
         var isTestingExtraction by remember { mutableStateOf(false) }
         var testResult by remember { mutableStateOf<ResolvedStream?>(null) }
 
+        // Companion (REX-Ytdlp APK) update-check state, relocated from the About screen.
+        val updateViewModel = LocalUpdateViewModel.current
+        val companionUpdateState by (updateViewModel?.companionUpdateState ?: MutableStateFlow(UpdateViewModel.UpdateState.Idle)).collectAsState()
+        val companionAutoUpdateEnabled by (updateViewModel?.isYtdlpAutoUpdateEnabled ?: MutableStateFlow(false)).collectAsState()
+
         // Load status when addon is installed
         fun refreshStatus() {
             scope.launch {
@@ -130,6 +143,23 @@ object YtdlSettingsScreen : Screen {
             refreshStatus()
         }
 
+        // Surface companion update-check results that don't open the shared update
+        // dialog in MainActivity (same feedback pattern as the app update check on
+        // the About screen). Auto-checks resolve to Idle instead of these states.
+        LaunchedEffect(companionUpdateState) {
+            when (companionUpdateState) {
+                is UpdateViewModel.UpdateState.NoUpdate -> {
+                    Toast.makeText(context, context.getString(R.string.pref_ytdlp_up_to_date), Toast.LENGTH_SHORT).show()
+                    updateViewModel?.dismissCompanionNoUpdate()
+                }
+                is UpdateViewModel.UpdateState.Error -> {
+                    Toast.makeText(context, context.getString(R.string.pref_ytdlp_check_updates_failed), Toast.LENGTH_SHORT).show()
+                    updateViewModel?.dismissCompanionNoUpdate()
+                }
+                else -> {}
+            }
+        }
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -142,7 +172,7 @@ object YtdlSettingsScreen : Screen {
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = backstack::removeLastOrNull) {
+                        IconButton(onClick = backstack::navigateBack) {
                             Icon(
                                 Icons.AutoMirrored.Outlined.ArrowBack,
                                 contentDescription = null,
@@ -227,6 +257,96 @@ object YtdlSettingsScreen : Screen {
                         }
                     }
 
+                    // Section 1b: Add-on Update Channel
+                    item {
+                        PreferenceSectionHeader(title = stringResource(R.string.pref_category_ytdlp_updates))
+                    }
+
+                    item {
+                        val preferNightly by preferences.preferNightly.collectAsState()
+                        // Companion APK (REX-Ytdlp) auto/manual update checks, relocated from
+                        // the About screen. Only meaningful when the companion is installed;
+                        // the "Add-on Not Installed" card above covers the missing case.
+                        val showCompanionUpdateControls = BuildConfig.ENABLE_UPDATE_FEATURE && isAddonInstalled
+
+                        GroupedListColumn {
+                            GroupedPreferenceCard(
+                                position = if (showCompanionUpdateControls) GroupPosition.FIRST else GroupPosition.ONLY,
+                                highlightKey = "Prefer Nightly Channel",
+                            ) {
+                                SwitchPreference(
+                                    value = preferNightly,
+                                    onValueChange = { preferences.preferNightly.set(it) },
+                                    title = { Text("Prefer Nightly Channel") },
+                                    summary = { Text("Receive cutting-edge yt-dlp nightly extractor fixes", color = MaterialTheme.colorScheme.outline) },
+                                )
+                            }
+
+                            if (showCompanionUpdateControls) {
+                                GroupedPreferenceCard(
+                                    position = GroupPosition.MIDDLE,
+                                    highlightKey = R.string.pref_ytdlp_auto_check_updates,
+                                ) {
+                                    SwitchPreference(
+                                        value = companionAutoUpdateEnabled,
+                                        onValueChange = { updateViewModel?.toggleYtdlpAutoUpdate(it) },
+                                        title = { Text(stringResource(R.string.pref_ytdlp_auto_check_updates)) },
+                                        summary = {
+                                            Text(
+                                                stringResource(R.string.pref_ytdlp_auto_check_updates_summary),
+                                                color = MaterialTheme.colorScheme.outline,
+                                            )
+                                        },
+                                        icon = {
+                                            Icon(
+                                                Icons.Outlined.SystemUpdate,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+
+                            if (showCompanionUpdateControls) {
+                                GroupedPreferenceCard(
+                                    position = GroupPosition.LAST,
+                                    highlightKey = R.string.pref_ytdlp_check_updates,
+                                ) {
+                                    Preference(
+                                        title = { Text(stringResource(R.string.pref_ytdlp_check_updates)) },
+                                        summary = {
+                                            if (companionUpdateState is UpdateViewModel.UpdateState.Loading) {
+                                                Text(
+                                                    stringResource(R.string.pref_about_checking),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            } else {
+                                                Text(
+                                                    stringResource(R.string.pref_ytdlp_check_updates_summary),
+                                                    color = MaterialTheme.colorScheme.outline,
+                                                )
+                                            }
+                                        },
+                                        icon = {
+                                            if (companionUpdateState is UpdateViewModel.UpdateState.Loading) {
+                                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                            } else {
+                                                Icon(
+                                                    Icons.Outlined.SystemUpdate,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
+                                        },
+                                        onClick = { updateViewModel?.checkCompanionUpdate(manual = true) },
+                                        enabled = companionUpdateState !is UpdateViewModel.UpdateState.Loading,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Section 2: Quality & Codec Preferences
                     item {
                         PreferenceSectionHeader(title = "Stream Quality")
@@ -235,7 +355,6 @@ object YtdlSettingsScreen : Screen {
                     item {
                         val quality by preferences.qualityPreference.collectAsState()
                         val geoBypass by preferences.geoBypass.collectAsState()
-                        val preferNightly by preferences.preferNightly.collectAsState()
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
@@ -276,7 +395,7 @@ object YtdlSettingsScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
-                                position = GroupPosition.MIDDLE,
+                                position = GroupPosition.LAST,
                                 highlightKey = "Geo-Bypass",
                             ) {
                                 SwitchPreference(
@@ -284,18 +403,6 @@ object YtdlSettingsScreen : Screen {
                                     onValueChange = { preferences.geoBypass.set(it) },
                                     title = { Text("Geo-Bypass") },
                                     summary = { Text("Bypass geographic video restrictions where possible", color = MaterialTheme.colorScheme.outline) },
-                                )
-                            }
-
-                            GroupedPreferenceCard(
-                                position = GroupPosition.LAST,
-                                highlightKey = "Prefer Nightly Channel",
-                            ) {
-                                SwitchPreference(
-                                    value = preferNightly,
-                                    onValueChange = { preferences.preferNightly.set(it) },
-                                    title = { Text("Prefer Nightly Channel") },
-                                    summary = { Text("Receive cutting-edge yt-dlp nightly extractor fixes", color = MaterialTheme.colorScheme.outline) },
                                 )
                             }
                         }

@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import xyz.mpv.rex.R
+import xyz.mpv.rex.database.entities.BookmarkEntity
 import xyz.mpv.rex.preferences.AudioPreferences
 import xyz.mpv.rex.preferences.DecoderPreferences
 import xyz.mpv.rex.preferences.GesturePreferences
@@ -62,6 +63,7 @@ import xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerStateManager
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 import xyz.mpv.rex.ui.player.managers.CustomButtonManager
+import xyz.mpv.rex.ui.player.managers.BookmarkManager
 import xyz.mpv.rex.ui.player.managers.PlaybackManager
 import xyz.mpv.rex.ui.player.managers.PlayerGestureManager
 import xyz.mpv.rex.ui.player.managers.PlayerSnapshotManager
@@ -69,6 +71,10 @@ import xyz.mpv.rex.ui.player.managers.PlaylistManager
 import xyz.mpv.rex.ui.player.managers.SubtitleManager
 import xyz.mpv.rex.ui.player.managers.TrackManager
 import xyz.mpv.rex.ui.player.managers.VideoFlipFilterManager
+import xyz.mpv.rex.ui.player.controls.components.sheets.ChapterSheetItem
+import xyz.mpv.rex.ui.player.controls.components.sheets.activeChapterSheetItem
+import xyz.mpv.rex.ui.player.controls.components.sheets.mergeChapterSheetItems
+import xyz.mpv.rex.ui.player.controls.components.sheets.nextChapterSheetItem
 
 
 enum class RepeatMode {
@@ -339,6 +345,42 @@ class PlayerViewModel(
     observeChapters(json)
       .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
+  /**
+   * Pins a bookmark at [positionMs] (defaults to the live position) for the current media.
+   *
+   * The media key is resolved here and now: on a freshly opened player the identifier flow may still
+   * be blank when the tap arrives, and a bookmark saved under a blank key would never be found again.
+   */
+  fun addBookmark(positionMs: Long? = null) {
+    val mediaKey = _mediaIdentifier.value.ifBlank { _mediaTitle.value }
+    if (mediaKey.isBlank()) {
+      playerUpdate.value = PlayerUpdates.ShowText(host.context.getString(R.string.bookmark_needs_media))
+      return
+    }
+    _bookmarkManager.add(mediaKey, positionMs)
+  }
+
+  fun renameBookmark(
+    id: Long,
+    title: String,
+  ) = _bookmarkManager.rename(id, title)
+
+  fun deleteBookmark(id: Long) = _bookmarkManager.delete(id)
+
+  /**
+   * Seeks to the next chapter or manual bookmark after the current position.
+   * Used by double-tap chapter skip so user pins are part of the skip sequence.
+   */
+  fun seekToNextStop() {
+    val position = `is`.xyz.mpv.MPVLib.getPropertyDouble("time-pos") ?: return
+    val next = nextChapterSheetItem(
+      mergedItems = mergeChapterSheetItems(chapters.value, bookmarks.value),
+      currentSeconds = position.toFloat(),
+    ) ?: return
+    seekToStop(next.startSeconds.toDouble(), next)
+    unpause()
+  }
+
   // UI state
   private val _controlsShown = MutableStateFlow(false)
   val controlsShown: StateFlow<Boolean> = _controlsShown.asStateFlow()
@@ -475,8 +517,80 @@ class PlayerViewModel(
   val mediaIdentifier: StateFlow<String> = _mediaIdentifier.asStateFlow()
 
   fun setMediaIdentifier(identifier: String) {
+    // A recreated view model (player reopened) must never carry a jump highlight over into the
+    // next media: the pin only makes sense for the seek that armed it.
+    pendingStop.value = null
     _mediaIdentifier.value = identifier
   }
+
+  // --- Manual bookmarks ---
+
+  private val bookmarkRepository: xyz.mpv.rex.domain.bookmark.repository.BookmarkRepository by inject()
+
+  private val _bookmarkManager = BookmarkManager(
+    repository = bookmarkRepository,
+    context = appContext,
+    scope = viewModelScope,
+    onShowText = { playerUpdate.value = PlayerUpdates.ShowText(it) },
+  )
+
+  /**
+   * Live playback position in seconds, used to pre-fill and time new bookmarks.
+   *
+   * `time-pos` is a float property, so it must be observed as one: mpv only converts to the
+   * requested format for `MPV_FORMAT_NONE`/`MPV_FORMAT_STRING`, so observing it as INT64 fails and
+   * the flow never emits anything but its initial value.
+   */
+  val currentPosition: StateFlow<Float?> =
+    MPVLib.propDouble["time-pos"]
+      .map { it?.toFloat() }
+      .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+  /**
+   * Manual bookmarks for the current media.
+   *
+   * Always restarted (`WhileSubscribed`) rather than `Lazily`: the manager's flow is a replayed
+   * snapshot of a repository subscription, so a second subscriber after the first stopped (closing
+   * and reopening the player) would otherwise sit on the initial empty list forever.
+   */
+  val bookmarks: StateFlow<List<BookmarkEntity>> =
+    _bookmarkManager.bookmarks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+  /**
+   * The stop (chapter or bookmark) the user just jumped to, shown as current until playback
+   * settles on it. Prevents the previous stop from flashing after a jump.
+   */
+  private val pendingStop = MutableStateFlow<ChapterSheetItem?>(null)
+  private var optimisticStopJob: Job? = null
+
+  /**
+   * Everything the UI needs to highlight the current chapter/bookmark, already merged and with
+   * the optimistic jump target applied.
+   */
+  val currentStopLineup: StateFlow<CurrentStopLineup> = combine(
+    chapters,
+    bookmarks,
+    pendingStop,
+    MPVLib.propDouble["time-pos"],
+    MPVLib.propInt["chapter"],
+  ) { chapters, bookmarks, pending, position, mpvChapterIndex ->
+    // Merge once: this ran twice per emission and each merge re-sorts the whole timeline.
+    val items = mergeChapterSheetItems(chapters, bookmarks)
+    CurrentStopLineup(
+      items = items,
+      // `null` means "unknown", never index 0: `?: 0` made a not-yet-reported chapter look
+      // like chapter 0 and would highlight the wrong chapter.
+      active = pending ?: activeChapterSheetItem(
+        mergedItems = items,
+        currentSeconds = position?.toFloat(),
+        activeChapterIndex = mpvChapterIndex,
+      ),
+    )
+  }.stateIn(
+    viewModelScope,
+    SharingStarted.WhileSubscribed(5_000),
+    CurrentStopLineup(emptyList(), null),
+  )
 
   var currentMediaTitle: String
     get() = _mediaTitle.value
@@ -527,6 +641,15 @@ class PlayerViewModel(
 
   init {
     // Track selection is now handled by TrackSelector in PlayerActivity
+
+    // Keep manual bookmarks in sync with the media currently playing
+    _bookmarkManager.follow(_mediaIdentifier, _mediaTitle)
+
+    attachOptimisticStopWatcher()
+
+    // A plain seek (scrubbing, gesture seeks) supersedes any pending chapter/bookmark jump, so
+    // the title stops describing the old jump target the moment the playhead is moved elsewhere.
+    _playbackManager.onSeekRequested = { pendingStop.value = null }
     
     // Restore repeat mode and shuffle state from preferences
     _repeatMode.value = playerPreferences.repeatMode.get()
@@ -701,6 +824,18 @@ class PlayerViewModel(
 
   private companion object {
     const val TAG = "PlayerViewModel"
+
+    /**
+     * How far before a jump target the reported position may still be while mpv settles, before
+     * the optimistic highlight is dropped in favour of what playback actually reports.
+     */
+    const val OPTIMISTIC_STOP_TOLERANCE_SECONDS = 1.5
+
+    /** How long a jump highlight is held before checking whether the seek actually landed. */
+    const val OPTIMISTIC_STOP_SETTLE_MS = 700L
+
+    /** Upper bound on the jump highlight surviving while the position never reaches the target. */
+    const val OPTIMISTIC_STOP_GIVE_UP_MS = 4_000L
     val VALID_SUBTITLE_EXTENSIONS =
       setOf(
         // Common & modern
@@ -1065,6 +1200,81 @@ class PlayerViewModel(
 
   fun seekTo(position: Int) {
     _playbackManager.seekTo(viewModelScope, position, abLoopA.value, abLoopB.value)
+  }
+
+  /**
+   * Seeks to a discrete stop (chapter or bookmark) exactly, with no keyframe snapping.
+   *
+   * A keyframe-accurate seek lands slightly *before* a chapter boundary, so the UI momentarily
+   * shows the previous chapter before settling. For a deliberate jump to a known timestamp that
+   * is simply wrong, so these always use an exact seek regardless of the precise-seeking
+   * preference.
+   */
+  fun seekToStop(positionSeconds: Double, expectedStop: ChapterSheetItem? = null) {
+    if (expectedStop != null) armOptimisticStop(expectedStop)
+    _playbackManager.seekToExact(viewModelScope, positionSeconds, abLoopA.value, abLoopB.value)
+  }
+
+  /**
+   * Seeks to an embedded chapter by index.
+   */
+  fun seekToChapter(index: Int) {
+    val target = chapters.value.getOrNull(index)
+    if (target == null) {
+      MPVLib.setPropertyInt("chapter", index)
+      unpause()
+      return
+    }
+    seekToStop(target.start.toDouble(), ChapterSheetItem.ChapterItem(index, target))
+    unpause()
+  }
+
+  /** Seeks to a manual bookmark, highlighting it immediately while the seek settles. */
+  fun seekToBookmark(bookmark: BookmarkEntity) {
+    seekToStop(bookmark.positionMs / 1000.0, ChapterSheetItem.BookmarkItem(bookmark))
+    unpause()
+  }
+
+  /**
+   * Drops the optimistic stop once playback has caught up with it.
+   *
+   * Triggered by genuine position changes only, so it must not depend on `time-pos` emitting: a
+   * seek back into the same stop, or a seek while paused, may not move the position at all. It
+   * therefore also checks the live position when armed and self-expires if the seek never lands,
+   * otherwise the highlight would stay pinned to the last jump forever.
+   */
+  private fun attachOptimisticStopWatcher() {
+    viewModelScope.launch {
+      MPVLib.propDouble["time-pos"].collect { position ->
+        if (position != null && pendingStop.value != null) reconcilePendingStop(position)
+      }
+    }
+  }
+
+  private fun reconcilePendingStop(position: Double) {
+    val pending = pendingStop.value ?: return
+    // The pin is a jump preview, so it only holds while playback is still (roughly) passing
+    // through the target. If the playhead is anywhere else, the user kept going: drop it and let
+    // the position decide again, otherwise a jump that overshot (mpv resolving a chapter seek,
+    // an exact seek clamped by an A-B loop, ...) would pin the old title indefinitely.
+    val stillThere = kotlin.math.abs(position - pending.startSeconds) <=
+      OPTIMISTIC_STOP_TOLERANCE_SECONDS
+    if (!stillThere) pendingStop.value = null
+  }
+
+  private fun armOptimisticStop(stop: ChapterSheetItem) {
+    pendingStop.value = stop
+    optimisticStopJob?.cancel()
+    optimisticStopJob = viewModelScope.launch {
+      // Give the seek a moment to take effect, then drop the pin if it landed there already
+      // (a paused seek produces no further time-pos updates to reconcile against).
+      delay(OPTIMISTIC_STOP_SETTLE_MS)
+      val position = runCatching { MPVLib.getPropertyDouble("time-pos") }.getOrNull()
+      if (position != null) reconcilePendingStop(position)
+      // If the seek never reached the target, stop claiming the target after a bounded wait.
+      delay(OPTIMISTIC_STOP_GIVE_UP_MS)
+      if (pendingStop.value == stop) pendingStop.value = null
+    }
   }
 
   fun setPlaybackSpeed(speed: Float) {
@@ -2118,6 +2328,9 @@ class PlayerViewModel(
   override fun onCleared() {
     super.onCleared()
     _playbackManager.cancelPendingJobs()
+    _bookmarkManager.cancel()
+    optimisticStopJob?.cancel()
+    pendingStop.value = null
     ambientController.cleanup()
     videoFlipFilterManager.reset()
   }
@@ -2147,3 +2360,8 @@ fun <T> Flow<T>.collectAsState(
   ) = value
 }
 
+/** Merged chapter/bookmark timeline plus the stop the UI should currently highlight. */
+data class CurrentStopLineup(
+  val items: List<ChapterSheetItem>,
+  val active: ChapterSheetItem?,
+)

@@ -2,7 +2,10 @@ package xyz.mpv.rex.utils.update
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
@@ -25,9 +31,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import xyz.mpv.rex.utils.media.MediaFormatter
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withAnnotation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.res.stringResource
 import xyz.mpv.rex.R
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -36,6 +52,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import xyz.mpv.rex.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,7 +83,8 @@ data class Release(
     @SerialName("body") val body: String,
     @SerialName("published_at") val publishedAt: String,
     @SerialName("assets") val assets: List<Asset>,
-    @SerialName("html_url") val htmlUrl: String? = null
+    @SerialName("html_url") val htmlUrl: String? = null,
+    @SerialName("changelog") val changelog: List<ChangelogEntry> = emptyList()
 )
 
 @Serializable
@@ -77,18 +95,74 @@ data class Asset(
     @SerialName("content_type") val contentType: String
 )
 
+// One commit of a preview build's changelog. `serial` matches the "r<serial>" preview
+// version name, `message` is the commit subject (first line only) and `sha` links to
+// the GitHub commit page.
+@Serializable
+data class ChangelogEntry(
+    @SerialName("serial") val serial: Int,
+    @SerialName("message") val message: String,
+    @SerialName("sha") val sha: String = ""
+)
+
+/** A piece of a changelog message: plain text, or an "#123" issue/PR reference. */
+sealed interface ChangelogSegment {
+    data class Text(val text: String) : ChangelogSegment
+    data class Ref(val number: String) : ChangelogSegment
+}
+
 // --- Domain Manager ---
 
 class UpdateManager(
     private val context: Context
 ) {
-    private val client = OkHttpClient()
+    private val client = clientWithUserAgent()
     private val json = Json { ignoreUnknownKeys = true }
+    private val prefs by lazy { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
     companion object {
         const val PREVIEW_PAGE_URL = "https://mpvrex.github.io/REX-Player/"
         const val PREVIEW_JSON_URL = "https://mpvrex.github.io/REX-Player/version.json"
         const val RELEASE_API_URL = "https://api.github.com/repos/mpvRex/REX-Player/releases/latest"
+        const val REPO_COMMIT_URL = "https://github.com/mpvRex/REX-Player/commit"
+        const val REPO_ISSUE_URL = "https://github.com/mpvRex/REX-Player/issues"
+
+        /** Minimum gap between two automatic (non-manual) server checks. */
+        const val AUTO_CHECK_INTERVAL_MS = 60L * 60L * 1000L
+
+        private const val PREFS_NAME = "mpvEx_prefs"
+        private const val KEY_LAST_CHECK = "last_update_check"
+        private const val KEY_LAST_CHECK_VERSION = "last_update_check_version"
+        private const val KEY_CACHED_RELEASE = "cached_release"
+
+        /** True if an automatic check is allowed right now (never checked, or interval elapsed). */
+        fun isAutoCheckDue(lastCheckMillis: Long, nowMillis: Long = System.currentTimeMillis()): Boolean {
+            if (lastCheckMillis <= 0L) return true
+            // Clock moved backwards or timer overflowed -> treat as due instead of blocking forever.
+            if (nowMillis < lastCheckMillis) return true
+            return nowMillis - lastCheckMillis >= AUTO_CHECK_INTERVAL_MS
+        }
+
+        /** Decodes a cached [Release] stored under [key], or null if absent/corrupt. */
+        fun readCachedRelease(prefs: SharedPreferences, key: String): Release? {
+            val raw = prefs.getString(key, null) ?: return null
+            return try {
+                Json { ignoreUnknownKeys = true }.decodeFromString(Release.serializer(), raw)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        /** GitHub API requires a User-Agent; without one requests are rejected. */
+        fun clientWithUserAgent(): OkHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header("User-Agent", "mpvRex/${BuildConfig.VERSION_NAME}")
+                        .build()
+                )
+            }
+            .build()
 
         fun isPreviewBuild(): Boolean {
             return BuildConfig.IS_PREVIEW || BuildConfig.BUILD_TYPE == "preview" || BuildConfig.APPLICATION_ID.endsWith(".preview")
@@ -112,6 +186,90 @@ class UpdateManager(
             } else {
                 false
             }
+        }
+
+        /** Standard "x.y.z" comparison; unparseable segments count as 0. */
+        fun isNewerVersion(remote: String, current: String): Boolean {
+            val rParts = remote.split(".").map { it.toIntOrNull() ?: 0 }
+            val cParts = current.split(".").map { it.toIntOrNull() ?: 0 }
+
+            for (i in 0 until maxOf(rParts.size, cParts.size)) {
+                val r = rParts.getOrElse(i) { 0 }
+                val c = cParts.getOrElse(i) { 0 }
+                if (r > c) return true
+                if (r < c) return false
+            }
+            return false
+        }
+
+        /**
+         * True if a cached release is still newer than the build it would be shown to.
+         *
+         * The cache stores the release that was newer at the last successful check,
+         * relative to the build that ran it. When that update is then installed
+         * (in-app self-update, sideload) the process dies before the cache can be
+         * cleared, so restoring from cache must re-validate against the *installed*
+         * version instead of resurrecting an already-installed "update available".
+         */
+        fun isCachedReleaseStillNewer(
+            release: Release,
+            isPreviewBuild: Boolean,
+            currentCommitCount: Int,
+            currentVersionName: String
+        ): Boolean {
+            return if (isPreviewBuild) {
+                isNewerPreviewVersion(release.tagName, currentCommitCount)
+            } else {
+                isNewerVersion(release.tagName.removePrefix("v"), currentVersionName.replace("-dev", ""))
+            }
+        }
+
+        // --- Preview changelog ---
+
+        private val issueRef = Regex("""#(\d+)""")
+
+        fun commitUrl(sha: String): String = "$REPO_COMMIT_URL/$sha"
+
+        fun issueUrl(number: String): String = "$REPO_ISSUE_URL/$number"
+
+        /** Splits a commit subject into plain text and "#123" issue/PR reference segments. */
+        fun parseChangelogSegments(message: String): List<ChangelogSegment> {
+            val segments = mutableListOf<ChangelogSegment>()
+            var index = 0
+            for (match in issueRef.findAll(message)) {
+                if (match.range.first > index) {
+                    segments += ChangelogSegment.Text(message.substring(index, match.range.first))
+                }
+                segments += ChangelogSegment.Ref(match.groupValues[1])
+                index = match.range.last + 1
+            }
+            if (index < message.length) {
+                segments += ChangelogSegment.Text(message.substring(index))
+            }
+            return segments
+        }
+
+        /** Commits between the installed build (serial > currentCommitCount) and the available build. */
+        fun previewChangelogEntries(release: Release, currentCommitCount: Int): List<ChangelogEntry> {
+            return release.changelog
+                .filter { it.serial > currentCommitCount }
+                .sortedByDescending { it.serial }
+        }
+
+        /**
+         * Commits between the installed build and the release tag that are not listed in the
+         * changelog window (capped by the workflow; merge commits are excluded too).
+         */
+        fun previewChangelogSkipped(
+            release: Release,
+            currentCommitCount: Int,
+            shownCount: Int
+        ): Int {
+            if (shownCount <= 0) return 0
+            val latestSerial = parseCommitCount(release.tagName)
+                ?: release.changelog.maxOfOrNull { it.serial }
+                ?: return 0
+            return (latestSerial - currentCommitCount) - shownCount
         }
 
         fun parseFileSizeToBytes(sizeStr: String): Long {
@@ -228,9 +386,20 @@ class UpdateManager(
         }
     }
 
-    suspend fun checkForUpdate(forceShow: Boolean = false): Release? {
+    /**
+     * Checks the server for a newer release.
+     *
+     * @param forceShow manual check: bypasses the ignore list.
+     * @param manual explicit user action: bypasses the hourly auto-check throttle.
+     *   Automatic callers should skip the call when [isAutoCheckDue] is false.
+     */
+    suspend fun checkForUpdate(forceShow: Boolean = false, manual: Boolean = forceShow): Release? {
         // Return null immediately if update feature is disabled (F-Droid flavor)
         if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
+            return null
+        }
+
+        if (!manual && !isAutoCheckDue()) {
             return null
         }
 
@@ -243,37 +412,43 @@ class UpdateManager(
 
     private suspend fun checkReleaseUpdate(forceShow: Boolean): Release? {
         val release = getLatestRelease(RELEASE_API_URL)
+        // Server answered, so count this as a check even if the ignored list hides it.
+        markChecked()
         val currentVersion = BuildConfig.VERSION_NAME.replace("-dev", "")
         val remoteVersion = release.tagName.removePrefix("v")
-        val prefs = context.getSharedPreferences("mpvEx_prefs", Context.MODE_PRIVATE)
         val ignoredVersion = prefs.getString("ignored_version", null)
 
         // If this version was ignored, don't show it unless forced (manual check)
         if (!forceShow && ignoredVersion == remoteVersion) {
+            cacheRelease(null)
             return null
         }
 
         return if (isNewerVersion(remoteVersion, currentVersion)) {
-            ensureAssetSizes(release)
+            ensureAssetSizes(release).also { cacheRelease(it) }
         } else {
+            cacheRelease(null)
             null
         }
     }
 
     private suspend fun checkPreviewUpdate(forceShow: Boolean): Release? {
         val release = getLatestPreviewRelease() ?: return null
+        // Server answered, so count this as a check even if the ignored list hides it.
+        markChecked()
         val remoteVersion = release.tagName.removePrefix("v")
-        val prefs = context.getSharedPreferences("mpvEx_prefs", Context.MODE_PRIVATE)
         val ignoredVersion = prefs.getString("ignored_version", null)
 
         if (!forceShow && ignoredVersion == remoteVersion) {
+            cacheRelease(null)
             return null
         }
 
         val currentCommitCount = getCurrentCommitCount()
         return if (isNewerPreviewVersion(remoteVersion, currentCommitCount)) {
-            ensureAssetSizes(release)
+            ensureAssetSizes(release).also { cacheRelease(it) }
         } else {
+            cacheRelease(null)
             null
         }
     }
@@ -312,10 +487,80 @@ class UpdateManager(
             return
         }
         
-        val prefs = context.getSharedPreferences("mpvEx_prefs", Context.MODE_PRIVATE)
         prefs.edit()
             .putString("ignored_version", version)
             .apply()
+        // Don't resurrect an ignored version from the cache on the next launch.
+        cacheRelease(null)
+    }
+
+    /** True if an automatic (non-manual) check is allowed right now. */
+    fun isAutoCheckDue(): Boolean {
+        val last = prefs.getLong(KEY_LAST_CHECK, 0L)
+        return isAutoCheckDue(last)
+    }
+
+    /**
+     * Records a successful check so the next automatic check waits [AUTO_CHECK_INTERVAL_MS].
+     * Only called when the server actually answered, so network failures retry next launch.
+     * Also stamps the build the check was made by, so [dropStateFromPreviousBuild] can
+     * recognize state persisted by an older app version.
+     */
+    fun markChecked() {
+        prefs.edit()
+            .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
+            .putString(KEY_LAST_CHECK_VERSION, BuildConfig.VERSION_NAME)
+            .apply()
+    }
+
+    /**
+     * Discards update state recorded by a different app build.
+     *
+     * An in-app self-update kills the process while the package installer runs, so the
+     * cached release and the check timestamp survive in SharedPreferences even though
+     * they describe the previous build: the cache may name the very version that was
+     * just installed, and the timestamp would defer the first real check after the
+     * update by up to an hour. On the first launch of a new build both are dropped so
+     * the automatic check runs fresh against the new version.
+     */
+    fun dropStateFromPreviousBuild() {
+        if (prefs.getString(KEY_LAST_CHECK_VERSION, null) == BuildConfig.VERSION_NAME) return
+        prefs.edit()
+            .putString(KEY_LAST_CHECK_VERSION, BuildConfig.VERSION_NAME)
+            .putLong(KEY_LAST_CHECK, 0L)
+            .remove(KEY_CACHED_RELEASE)
+            .apply()
+    }
+
+    /** The newest release that was known to be available at the last successful check, if any. */
+    fun cachedRelease(): Release? = readCachedRelease(prefs, KEY_CACHED_RELEASE)
+
+    /**
+     * The cached release, provided it is still newer than the installed build; otherwise
+     * the stale cache is cleared and null returned. The restore-when-throttled path uses
+     * this so an update that was installed after the check is not resurrected from cache.
+     */
+    fun cachedReleaseIfStillNewer(): Release? {
+        val cached = cachedRelease() ?: return null
+        if (isCachedReleaseStillNewer(
+                release = cached,
+                isPreviewBuild = isPreviewBuild(),
+                currentCommitCount = getCurrentCommitCount(),
+                currentVersionName = BuildConfig.VERSION_NAME
+            )
+        ) {
+            return cached
+        }
+        cacheRelease(null)
+        return null
+    }
+
+    /** Stores the newest available release; passing null clears it (already up to date). */
+    fun cacheRelease(release: Release?) {
+        prefs.edit().apply {
+            if (release == null) remove(KEY_CACHED_RELEASE)
+            else putString(KEY_CACHED_RELEASE, json.encodeToString(Release.serializer(), release))
+        }.apply()
     }
 
     private suspend fun getLatestRelease(url: String): Release = withContext(Dispatchers.IO) {
@@ -325,19 +570,6 @@ class UpdateManager(
 
         val responseBody = response.body.string()
         json.decodeFromString<Release>(responseBody)
-    }
-
-    private fun isNewerVersion(remote: String, current: String): Boolean {
-        val rParts = remote.split(".").map { it.toIntOrNull() ?: 0 }
-        val cParts = current.split(".").map { it.toIntOrNull() ?: 0 }
-        
-        for (i in 0 until maxOf(rParts.size, cParts.size)) {
-            val r = rParts.getOrElse(i) { 0 }
-            val c = cParts.getOrElse(i) { 0 }
-            if (r > c) return true
-            if (r < c) return false
-        }
-        return false
     }
 
     fun downloadUpdate(release: Release): Flow<Float> {
@@ -445,6 +677,10 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private val updateManager = UpdateManager(application)
     private val ytdlpUpdateManager = YtdlpUpdateManager(application)
 
+    /** Single-flight guards so overlapping triggers never fire duplicate requests. */
+    private var appCheckJob: Job? = null
+    private var companionCheckJob: Job? = null
+
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
@@ -468,6 +704,7 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         
         prefs.edit().putBoolean("auto_update", enabled).apply()
         _isAutoUpdateEnabled.value = enabled
+        // Re-enabling runs a check, but only if the hourly window has elapsed.
         if (enabled) {
             checkForUpdate(manual = false)
         }
@@ -490,7 +727,9 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         if (!BuildConfig.ENABLE_UPDATE_FEATURE) return
         prefs.edit().putBoolean("ytdlp_auto_update", enabled).apply()
         _isYtdlpAutoUpdateEnabled.value = enabled
-        if (enabled) checkCompanionUpdate(manual = false)
+        if (enabled) {
+            checkCompanionUpdate(manual = false)
+        }
     }
 
     fun refreshCompanionInstalled() {
@@ -503,18 +742,39 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         if (!BuildConfig.ENABLE_UPDATE_FEATURE) return
         refreshCompanionInstalled()
         if (!_isCompanionInstalled.value) return
-        viewModelScope.launch {
-            _companionUpdateState.value = UpdateState.Loading
+        // Never run two companion checks at once (avoids duplicate API hits).
+        if (companionCheckJob?.isActive == true) return
+        // Automatic checks are throttled to once per hour, across restarts.
+        // When throttled, fall back to the last known release so the dialog still shows
+        // offline; only if it is still newer than the companion APK actually installed
+        // (an update installed after the check must not resurrect from the cache).
+        if (!manual && !ytdlpUpdateManager.isAutoCheckDue()) {
+            val cached = ytdlpUpdateManager.cachedReleaseIfStillNewer()
+            if (cached != null) _companionUpdateState.value = UpdateState.Available(cached)
+            return
+        }
+        // Preserve an already-displayed dialog instead of overwriting it with Loading.
+        val hadUpdate = _companionUpdateState.value is UpdateState.Available
+        companionCheckJob = viewModelScope.launch {
+            if (!hadUpdate) _companionUpdateState.value = UpdateState.Loading
             try {
-                val release = ytdlpUpdateManager.checkForUpdate(forceShow = manual)
-                _companionUpdateState.value = when {
-                    release != null -> UpdateState.Available(release)
-                    manual -> UpdateState.NoUpdate
-                    else -> UpdateState.Idle
+                val release = ytdlpUpdateManager.checkForUpdate(forceShow = manual, manual = manual)
+                val current = _companionUpdateState.value
+                when {
+                    release != null -> _companionUpdateState.value = UpdateState.Available(release)
+                    manual -> _companionUpdateState.value = UpdateState.NoUpdate
+                    // Keep whatever the user is already looking at on a throttled/skipped check.
+                    current is UpdateState.Available -> Unit
+                    else -> _companionUpdateState.value = UpdateState.Idle
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                _companionUpdateState.value = if (manual) UpdateState.Error else UpdateState.Idle
+                val current = _companionUpdateState.value
+                _companionUpdateState.value = when {
+                    manual -> UpdateState.Error
+                    current is UpdateState.Available -> current
+                    else -> UpdateState.Idle
+                }
             }
         }
     }
@@ -529,13 +789,23 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     init {
-        // Only initialize auto-update if feature is enabled
-        if (BuildConfig.ENABLE_UPDATE_FEATURE && isAutoUpdateEnabled.value) {
-            checkForUpdate(manual = false)
-        }
-        // Companion auto-check only when addon is present (your conditional).
-        if (BuildConfig.ENABLE_UPDATE_FEATURE && _isCompanionInstalled.value && _isYtdlpAutoUpdateEnabled.value) {
-            checkCompanionUpdate(manual = false)
+        // Only initialize auto-update if feature is enabled.
+        // The checks themselves are throttled to once per hour (persisted across launches),
+        // so reopening the app repeatedly within the hour makes no server request.
+        if (BuildConfig.ENABLE_UPDATE_FEATURE) {
+            // State persisted by a previous app build (cached release + throttle window)
+            // is invalid after a self-update; drop it so the checks below run fresh.
+            // The companion is tracked separately because updating the addon does not
+            // change the player app's own version.
+            updateManager.dropStateFromPreviousBuild()
+            ytdlpUpdateManager.dropStateFromPreviousCompanion()
+            if (isAutoUpdateEnabled.value) {
+                checkForUpdate(manual = false)
+            }
+            // Companion auto-check only when addon is present (your conditional).
+            if (_isCompanionInstalled.value && _isYtdlpAutoUpdateEnabled.value) {
+                checkCompanionUpdate(manual = false)
+            }
         }
     }
 
@@ -557,11 +827,30 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         if (!BuildConfig.ENABLE_UPDATE_FEATURE) {
             return
         }
-        
-        viewModelScope.launch {
-            _updateState.value = UpdateState.Loading
+        // Never run two app checks at once (avoids duplicate API hits).
+        if (appCheckJob?.isActive == true) return
+        // Automatic checks are throttled to once per hour, across app restarts.
+        // When throttled, fall back to the last known release so the dialog still shows
+        // offline; only if it is still newer than the installed build (a self-update
+        // installed after the check must not resurrect from the cache).
+        if (!manual && !updateManager.isAutoCheckDue()) {
+            updateManager.cachedReleaseIfStillNewer()?.let { release ->
+                _updateState.value = if (updateManager.getApkFile(release) != null) {
+                    UpdateState.ReadyToInstall(release)
+                } else {
+                    UpdateState.Available(release)
+                }
+            }
+            return
+        }
+        // Preserve an already-displayed dialog instead of overwriting it with Loading.
+        val hadUpdate = _updateState.value.let {
+            it is UpdateState.Available || it is UpdateState.ReadyToInstall
+        }
+        appCheckJob = viewModelScope.launch {
+            if (!hadUpdate) _updateState.value = UpdateState.Loading
             try {
-                val release = updateManager.checkForUpdate(forceShow = manual)
+                val release = updateManager.checkForUpdate(forceShow = manual, manual = manual)
                 if (release != null) {
                     val existingFile = updateManager.getApkFile(release)
                      if (existingFile != null) {
@@ -570,13 +859,22 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
                          _updateState.value = UpdateState.Available(release)
                      }
                 } else {
-                    if (manual) _updateState.value = UpdateState.NoUpdate
-                    else _updateState.value = UpdateState.Idle
+                    val current = _updateState.value
+                    when {
+                        manual -> _updateState.value = UpdateState.NoUpdate
+                        // Keep whatever the user is already looking at on a throttled/skipped check.
+                        current is UpdateState.Available || current is UpdateState.ReadyToInstall -> Unit
+                        else -> _updateState.value = UpdateState.Idle
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                if (manual) _updateState.value = UpdateState.Error
-                else _updateState.value = UpdateState.Idle
+                val current = _updateState.value
+                _updateState.value = when {
+                    manual -> UpdateState.Error
+                    current is UpdateState.Available || current is UpdateState.ReadyToInstall -> current
+                    else -> UpdateState.Idle
+                }
             }
         }
     }
@@ -656,6 +954,11 @@ fun UpdateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .widthIn(max = 480.dp)
+            .fillMaxWidth(),
         icon = {
             Icon(
                 imageVector = if (actionLabel == "Install") Icons.Filled.SystemUpdate else Icons.Filled.CloudDownload,
@@ -702,11 +1005,15 @@ fun UpdateDialog(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    MarkdownText(
-                        markdown = release.body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (release.changelog.isNotEmpty()) {
+                        PreviewChangelogNotes(release)
+                    } else {
+                        MarkdownText(
+                            markdown = release.body,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 if (isDownloading) {
@@ -791,4 +1098,117 @@ private fun formatDate(dateString: String): String {
         }
     }
     return dateString
+}
+
+private const val CHANGELOG_URL_TAG = "changelog_url"
+
+/**
+ * Preview changelog rendered as native Compose text so only issue/PR ids are accented:
+ * commit subjects keep the normal text color (clicking opens the GitHub commit page) and
+ * "#123" references are bold + blue (clicking opens the issue/PR page).
+ */
+@Composable
+private fun PreviewChangelogNotes(release: Release) {
+    val context = LocalContext.current
+    val currentCommitCount = UpdateManager.getCurrentCommitCount()
+    val entries = UpdateManager.previewChangelogEntries(release, currentCommitCount)
+    if (entries.isEmpty()) {
+        MarkdownText(
+            markdown = release.body,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.fillMaxWidth()
+        )
+        return
+    }
+
+    val refStyle = SpanStyle(
+        color = if (isSystemInDarkTheme()) Color(0xFF8AB4F8) else Color(0xFF1A73E8),
+        fontWeight = FontWeight.Bold
+    )
+    // ClickableText does not pick up the dialog's content color, so resolve it explicitly
+    // to keep commit subjects readable in both light and dark themes.
+    val messageStyle = MaterialTheme.typography.bodyMedium.copy(
+        color = MaterialTheme.colorScheme.onSurface
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.update_whats_changed),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        entries.forEach { entry ->
+            val annotated = remember(entry, refStyle) {
+                buildChangelogAnnotatedString(entry, refStyle)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+            ) {
+                Text(text = "•", style = messageStyle)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "r${entry.serial}",
+                    style = messageStyle,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                ClickableText(
+                    text = annotated,
+                    style = messageStyle,
+                    modifier = Modifier.weight(1f),
+                    onClick = { offset ->
+                        annotated
+                            .getStringAnnotations(CHANGELOG_URL_TAG, offset, offset)
+                            .firstOrNull()
+                            ?.let { openUrl(context, it.item) }
+                    }
+                )
+            }
+        }
+        val skipped = UpdateManager.previewChangelogSkipped(release, currentCommitCount, entries.size)
+        if (skipped > 0) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.update_more_commits, skipped),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun buildChangelogAnnotatedString(
+    entry: ChangelogEntry,
+    refStyle: SpanStyle
+): AnnotatedString = buildAnnotatedString {
+    val message = entry.message.trim()
+    if (message.isEmpty()) return@buildAnnotatedString
+    for (segment in UpdateManager.parseChangelogSegments(message)) {
+        when (segment) {
+            is ChangelogSegment.Text -> {
+                if (entry.sha.isNotBlank()) {
+                    withAnnotation(CHANGELOG_URL_TAG, UpdateManager.commitUrl(entry.sha)) {
+                        append(segment.text)
+                    }
+                } else {
+                    append(segment.text)
+                }
+            }
+            is ChangelogSegment.Ref -> {
+                withAnnotation(CHANGELOG_URL_TAG, UpdateManager.issueUrl(segment.number)) {
+                    withStyle(refStyle) { append("#${segment.number}") }
+                }
+            }
+        }
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }

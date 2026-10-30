@@ -20,10 +20,15 @@ class GesturePreferences(
   val rightSingleTapGesture = preferenceStore.getEnum("right_single_tap_gesture", SingleActionGesture.PlayPause)
   val useSingleTapForLeftRight = preferenceStore.getBoolean("use_single_tap_for_left_right", true)
   val reverseDoubleTap = preferenceStore.getBoolean("reverse_double_tap", false)
-  val doubleTapChapterToSkip = preferenceStore.getBoolean("double_tap_chapter_to_skip", false)
   val dontShowSeekBarOnDoubleTap = preferenceStore.getBoolean("dont_show_seekbar_on_double_tap", true)
   val twoFingerTapToSkipChapter = preferenceStore.getBoolean("two_finger_tap_to_skip_chapter", true)
   val twoFingerDoubleTapToSkip = preferenceStore.getBoolean("two_finger_double_tap_to_skip", true)
+  /**
+   * Off by default: a tap waits out the double-tap window, so the controls never show speculatively
+   * during a double-tap seek. On toggles at lift, which feels instant but may flash during a seek.
+   */
+  val instantControlsToggle = preferenceStore.getBoolean("instant_controls_toggle", false)
+  val doubleTapChapterToSkip = preferenceStore.getBoolean("double_tap_chapter_to_skip", false)
   val mediaPreviousGesture = preferenceStore.getEnum("media_previous_gesture", SingleActionGesture.PlaylistPrev)
   val mediaPlayGesture = preferenceStore.getEnum("media_play_gesture", SingleActionGesture.PlayPause)
   val mediaNextGesture = preferenceStore.getEnum("media_next_gesture", SingleActionGesture.PlaylistNext)

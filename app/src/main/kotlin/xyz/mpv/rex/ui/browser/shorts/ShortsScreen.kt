@@ -124,6 +124,7 @@ import xyz.mpv.rex.ui.browser.MainScreen
 import xyz.mpv.rex.ui.player.MPVView
 import xyz.mpv.rex.ui.preferences.BlockedShortsScreen
 import xyz.mpv.rex.ui.utils.LocalBackStack
+import xyz.mpv.rex.ui.utils.navigateBack
 import `is`.xyz.mpv.MPVLib
 import org.koin.compose.koinInject
 import xyz.mpv.rex.preferences.PlayerPreferences
@@ -214,7 +215,9 @@ data class ShortsScreen(
                 var isManuallyPaused by remember { mutableStateOf(false) }
                 var isFreeModeEnabled by remember { mutableStateOf(false) }
                 
-                val initialIndex = remember(shorts) {
+                // Compute once: the feed now grows while the user watches, so keying this
+                // on `shorts` would restart the pager on every appended page.
+                val initialIndex = remember {
                     viewModel.getInitialPageIndex(initialVideoPath)
                 }
                 val pagerState = rememberPagerState(
@@ -376,7 +379,7 @@ data class ShortsScreen(
                         viewModel = viewModel,
                         onBack = { 
                             if (backstack.size > 1) {
-                                backstack.removeLastOrNull()
+                                backstack.navigateBack()
                             } else {
                                 MainScreen.requestPreviousTab()
                             }

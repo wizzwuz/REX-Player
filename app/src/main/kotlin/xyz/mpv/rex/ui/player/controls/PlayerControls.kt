@@ -138,6 +138,7 @@ import xyz.mpv.rex.ui.player.controls.components.SpeedControlSlider
 import xyz.mpv.rex.ui.player.controls.components.TextPlayerUpdate
 import xyz.mpv.rex.ui.player.controls.components.VolumeSlider
 import xyz.mpv.rex.ui.player.controls.components.sheets.toFixed
+import xyz.mpv.rex.ui.player.controls.components.sheets.toSegment
 import xyz.mpv.rex.ui.theme.controlColor
 import xyz.mpv.rex.ui.theme.playerRippleConfiguration
 import xyz.mpv.rex.ui.theme.spacing
@@ -257,6 +258,7 @@ fun PlayerControls(
   }
   val playerTimeToDisappear by playerPreferences.playerTimeToDisappear.collectAsState()
   val chapters by viewModel.chapters.collectAsState(persistentListOf())
+  val bookmarks by viewModel.bookmarks.collectAsState(persistentListOf())
   val playlist by viewModel.playlistManager.playlist.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val haptic = LocalHapticFeedback.current
@@ -334,7 +336,7 @@ fun PlayerControls(
   val portraitVisibleButtons = remember(portraitBottomButtonsRaw, chapters, playlist, viewModel) {
     portraitBottomButtonsRaw.filter { button ->
       when (button) {
-        xyz.mpv.rex.preferences.PlayerButton.BOOKMARKS_CHAPTERS -> chapters.isNotEmpty()
+        xyz.mpv.rex.preferences.PlayerButton.BOOKMARKS_CHAPTERS -> true
         xyz.mpv.rex.preferences.PlayerButton.SHUFFLE -> viewModel.hasPlaylistSupport()
         xyz.mpv.rex.preferences.PlayerButton.CURRENT_CHAPTER -> false
         xyz.mpv.rex.preferences.PlayerButton.MORE_OPTIONS -> false
@@ -496,11 +498,28 @@ fun PlayerControls(
           label = "frameNavYOffset"
         )
 
+        val currentPlayerUpdate by viewModel.playerUpdate.collectAsState()
+        val isSpeedLocked by viewModel.isSpeedLocked.collectAsState()
         val osdTopMargin by animateDpAsState(
-          targetValue = if (areButtonsVisible) {
+          targetValue = if (
+            areButtonsVisible ||
+              (controlsShown && !areControlsLocked &&
+                doubleTapSeekAmount == 0 &&
+                (currentPlayerUpdate !is PlayerUpdates.None ||
+                  (isSpeedLocked && abs((playbackSpeed ?: 1f) - 1f) > 0.01f)))
+          ) {
             if (isPortrait) 104.dp else 68.dp
           } else {
             if (isPortrait) 64.dp else 32.dp
+          },
+          animationSpec = if (
+            doubleTapSeekAmount == 0 ||
+              currentPlayerUpdate is PlayerUpdates.ResumedFrom ||
+              currentPlayerUpdate is PlayerUpdates.PromptResume
+          ) {
+            tween(durationMillis = 300, easing = androidx.compose.animation.core.EaseInOut)
+          } else {
+            androidx.compose.animation.core.spring()
           },
           label = "osdTopMargin"
         )
@@ -579,7 +598,6 @@ fun PlayerControls(
         }
 
         val holdForMultipleSpeed by playerPreferences.holdForMultipleSpeed.collectAsState()
-        val currentPlayerUpdate by viewModel.playerUpdate.collectAsState()
         val aspectRatio by viewModel.videoAspect.collectAsState()
         val currentAspectRatio by viewModel.currentAspectRatio.collectAsState()
         val videoZoom by viewModel.videoZoom.collectAsState()
@@ -596,7 +614,6 @@ fun PlayerControls(
           viewModel.playerUpdate.update { PlayerUpdates.None }
         }
 
-        val isSpeedLocked by viewModel.isSpeedLocked.collectAsState()
         val isSpeedUpdate = currentPlayerUpdate is PlayerUpdates.MultipleSpeed ||
           currentPlayerUpdate is PlayerUpdates.DynamicSpeedControl ||
           (currentPlayerUpdate is PlayerUpdates.SpeedLockHint && !(currentPlayerUpdate as PlayerUpdates.SpeedLockHint).isLocked)
@@ -1514,6 +1531,7 @@ fun PlayerControls(
               },
               positionTimerOnClick = {},
               chapters = chapters.toImmutableList(),
+              bookmarks = bookmarks.map { it.toSegment() }.toImmutableList(),
               paused = isPlaybackPaused,
               readAheadValue = { readAheadPosition },
               seekbarStyle = seekbarStyle,
@@ -1850,6 +1868,7 @@ fun PlayerControls(
             bottom.linkTo(parent.bottom)
             verticalBias = abLoopVerticalBias
           }
+            .offset(y = (-16).dp)
         ) {
           val itemShape = RoundedCornerShape(14.dp)
           val buttonSize = 38.dp
@@ -2072,6 +2091,7 @@ fun PlayerControls(
     }
 
     val sheetShown by viewModel.sheetShown.collectAsState()
+    val currentStopLineup by viewModel.currentStopLineup.collectAsState()
     val subtitles by viewModel.subtitleTracks.collectAsState(persistentListOf())
     val audioTracks by viewModel.audioTracks.collectAsState(persistentListOf())
     val alternateAudio by viewModel.availableAlternateAudio.collectAsState(persistentListOf())
@@ -2097,10 +2117,14 @@ fun PlayerControls(
       chapter = chapters.getOrNull(currentChapter ?: 0),
       chapters = chapters.toImmutableList(),
       currentChapterIndex = currentChapter ?: 0,
-      onSeekToChapter = {
-        MPVLib.setPropertyInt("chapter", it)
-        viewModel.unpause()
+      onSeekToChapter = { chapterIndex ->
+        viewModel.seekToChapter(chapterIndex)
       },
+      activeStop = currentStopLineup.active,
+      onAddBookmarkHere = { viewModel.addBookmark() },
+      onSeekToBookmark = viewModel::seekToBookmark,
+      onRenameBookmark = viewModel::renameBookmark,
+      onDeleteBookmark = viewModel::deleteBookmark,
       decoder = decoder,
       onUpdateDecoder = { MPVLib.setPropertyString("hwdec", it.value) },
       speed = playbackSpeed ?: playerPreferences.defaultSpeed.get(),

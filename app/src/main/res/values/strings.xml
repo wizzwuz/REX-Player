@@ -146,7 +146,7 @@
     <string name="pref_layout_portrait_bottom_controls">Portrait Bottom Controls</string>
 
     <string name="pref_player">Player</string>
-    <string name="pref_player_summary">Orientation, gestures and controls</string>
+    <string name="pref_player_summary">Orientation, playback and display</string>
     <string name="pref_player_orientation">Orientation</string>
     <string name="pref_player_orientation_free">Free</string>
     <string name="pref_player_orientation_video">Video</string>
@@ -209,7 +209,10 @@
     <string name="pref_player_gestures_horizontal_swipe_sensitivity_summary">Adjust how much distance is covered per swipe</string>
     <string name="pref_player_gestures_hold_for_multiple_speed">Hold for multi - x speed</string>
     <string name="pref_player_remember_long_press_speed_title">Remember adjusted speed</string>
-    <string name="pref_player_remember_long_press_speed_summary">Use the last swiped speed for subsequent long presses</string>
+    <string name="pref_player_remember_long_press_speed_summary">Choose how adjusted speed is reused for subsequent long presses</string>
+    <string name="pref_player_remember_long_press_speed_reset">Reset to default</string>
+    <string name="pref_player_remember_long_press_speed_global">Remember globally</string>
+    <string name="pref_player_remember_long_press_speed_per_video">Remember per video</string>
 
     <string name="pref_player_controls">Controls</string>
     <string name="pref_player_controls_disable_media_buttons_title">Disable media buttons</string>
@@ -224,8 +227,9 @@
     <string name="pref_player_display_panel_transparency_summary" translatable="false">%d%%</string>
 
     <string name="pref_gesture">Gestures</string>
-    <string name="pref_gesture_summary">Double tap, media controls</string>
+    <string name="pref_gesture_summary">Screen gestures, double tap, media controls</string>
     <string name="pref_gesture_double_tap_title">Double tap</string>
+    <string name="pref_gesture_screen_gestures_title">Screen gestures</string>
     <string name="pref_gesture_double_tap_none">None</string>
     <string name="pref_gesture_double_tap_seek">Seek</string>
     <string name="pref_gesture_double_tap_subseek">Seek Subtitle</string>
@@ -256,6 +260,9 @@
     <string name="pref_gesture_use_single_tap_for_center_summary">Use a single tap in the center for gestures (like play/pause) instead of a double tap.</string>
     <string name="pref_gesture_use_single_tap_for_left_right_title">Use single tap for left/right gesture</string>
     <string name="pref_gesture_use_single_tap_for_left_right_summary">Use a single tap in the left and right areas for gestures (e.g. play/pause) alongside double tap.</string>
+    <string name="pref_gesture_instant_controls_toggle_title">Instant controls</string>
+    <string name="pref_gesture_instant_controls_toggle_on_summary">Controls appear the moment you tap. They may flash briefly during a double-tap seek.</string>
+    <string name="pref_gesture_instant_controls_toggle_off_summary">Controls wait for the double-tap window, so seeking never flashes them.</string>
     <string name="pref_gesture_prevent_seekbar_tap_title">Prevent Seeking on Accidental Taps</string>
     <string name="pref_gesture_prevent_seekbar_tap_summary">Video will only seek by dragging the seekbar, not by tapping it.</string>
     <string name="pref_gesture_use_relative_seeking_title">Use Relative Seeking</string>
@@ -365,6 +372,7 @@
     <string name="pref_advanced_cleared_playback_history">Cleared playback history</string>
     <string name="pref_advanced_clear_fonts_cache">Clear cached fonts</string>
     <string name="pref_advanced_cleared_fonts_cache">Cleared cached fonts</string>
+    <string name="pref_advanced_clear_fonts_failed">Couldn\'t clear cached fonts</string>
     <string name="pref_advanced_enable_recently_played_title">Recently Played</string>
     <string name="pref_advanced_enable_recently_played_summary">Track and display recently played videos and playlists</string>
     <string name="pref_advanced_history_auto_remove_deleted_title">Auto-remove deleted files</string>
@@ -450,6 +458,13 @@
     <string name="player_sheets_secondary_sub_scale">Secondary subtitle scale</string>
     <string name="player_sheets_sub_typography_card_title">Typography</string>
     <string name="player_sheets_sub_typography_font">Font</string>
+    <string name="player_sheets_sub_typography_add_font_file">Add Font File</string>
+    <string name="fonts_result_added">%1$d added</string>
+    <string name="fonts_result_existing">%1$d already installed</string>
+    <string name="fonts_result_failed">%1$d couldn\'t be added (invalid font or storage error)</string>
+    <string name="file_picker_import_selected">Import (%1$d)</string>
+    <string name="file_picker_clear_selection">Clear</string>
+    <string name="fonts_result_limit">%1$d skipped (batch size limit reached)</string>
     <string name="player_sheets_sub_typography_font_size">Font size</string>
     <string name="player_sheets_sub_typography_border_size">Border size</string>
     <string name="player_sheets_sub_colors_card_title">Colors</string>
@@ -825,6 +840,8 @@
     <string name="media_info_share_failed">Failed to share: %1$s</string>
     <string name="media_info_default_file_name">Media File</string>
     <string name="media_info_folder_path">Folder path</string>
+    <string name="media_info_date_added">Date added</string>
+    <string name="media_info_date_modified">Date modified</string>
 
     <!-- Network Connection Card -->
     <string name="network_connection_protocol_host">%1$s • %2$s:%3$s</string>
@@ -981,6 +998,11 @@
     <string name="mark_as_new_desc">Remove all marks and mark as new</string>
     <string name="folders_count">Folders (%1$d)</string>
     <string name="media_count">Media (%1$d)</string>
+    <string name="pin_to_top">Pin to top</string>
+    <string name="unpin_from_top">Unpin</string>
+    <string name="pinned_badge">Pinned</string>
+    <string name="pref_pins_isolate_title">Separate pins per view</string>
+    <string name="pref_pins_isolate_summary">Keep a separate set of pinned folders and files for the tree view and the folder view. When off, both views share the same pins.</string>
     <string name="drag_to_reorder">Drag to reorder</string>
     <string name="community_links">Community Links</string>
     <string name="community_hub">Community Hub</string>
@@ -1034,6 +1056,12 @@
     <!-- Update features -->
     <string name="pref_category_updates">Updates</string>
     <string name="pref_category_ytdlp_updates">REX Ytdlp Updates</string>
+    <string name="pref_ytdlp_auto_check_updates">Auto Check for Companion Updates</string>
+    <string name="pref_ytdlp_auto_check_updates_summary">Check for new REX Ytdlp companion releases on startup</string>
+    <string name="pref_ytdlp_check_updates">Check for Companion Updates</string>
+    <string name="pref_ytdlp_check_updates_summary">Manually check for new REX Ytdlp companion releases on GitHub</string>
+    <string name="pref_ytdlp_up_to_date">REX Ytdlp companion app is up to date!</string>
+    <string name="pref_ytdlp_check_updates_failed">Failed to check for REX Ytdlp companion app updates</string>
     <string name="pref_about_auto_check_updates">Auto Check for Updates</string>
     <string name="pref_about_auto_check_updates_summary">Check for new versions on startup</string>
     <string name="pref_about_check_updates">Check for Updates</string>
@@ -1048,6 +1076,8 @@
     <string name="update_release_date">Release Date</string>
     <string name="update_size">Size</string>
     <string name="update_release_notes">Release Notes</string>
+    <string name="update_whats_changed">What\'s changed</string>
+    <string name="update_more_commits">…and %1$d more commits (only the latest 20 are shown)</string>
     <string name="update_downloading">Downloading…</string>
     <string name="update_install">Install</string>
     <string name="update_download">Download</string>
@@ -1123,6 +1153,18 @@
     <!-- Player controls shared -->
     <string name="playlist_separator">• %1$s</string>
     <string name="chapters">Chapters</string>
+    <!-- Manual bookmarks -->
+    <string name="bookmarks">Bookmarks</string>
+    <string name="bookmark_add">Add bookmark here</string>
+    <string name="bookmark_added">Bookmark added</string>
+    <string name="bookmark_exists">A bookmark already exists here</string>
+    <string name="bookmark_default_title">Bookmark at %1$s</string>
+    <string name="bookmark_rename">Rename</string>
+    <string name="bookmark_delete">Delete</string>
+    <string name="bookmark_rename_title">Bookmark name</string>
+    <string name="bookmark_deleted">Bookmark deleted</string>
+    <string name="bookmark_saved">Bookmark renamed</string>
+    <string name="bookmark_needs_media">Bookmark needs a loaded video</string>
     <string name="skip_seconds">Skip %1$ds</string>
     <string name="playback_speed">Playback Speed</string>
     <string name="screen_rotation">Rotation</string>
@@ -1316,6 +1358,7 @@
     <string name="pref_advanced_tap_to_edit_configuration">Tap to edit configuration</string>
     <string name="pref_advanced_mpv_directory_ready">MPV directory ready ✓</string>
     <string name="pref_advanced_lua_set_storage_first">Set storage location and enable Lua scripts first</string>
+    <string name="pref_custom_lua_disabled_toast">Enable Lua scripts in Advanced first</string>
     <string name="pref_advanced_no_scripts_enabled">No scripts enabled</string>
     <string name="pref_advanced_custom_lua_summary">Create and manage custom Lua buttons</string>
     <string name="pref_advanced_config_cache_cleared">Config cache cleared</string>

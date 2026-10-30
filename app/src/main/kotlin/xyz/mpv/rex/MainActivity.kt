@@ -49,6 +49,7 @@ import xyz.mpv.rex.ui.browser.MainScreen
 import xyz.mpv.rex.ui.theme.DarkMode
 import xyz.mpv.rex.ui.theme.MpvexTheme
 import xyz.mpv.rex.ui.utils.LocalBackStack
+import xyz.mpv.rex.ui.utils.navigateBack
 import xyz.mpv.rex.utils.permission.PermissionUtils
 import xyz.mpv.rex.ui.browser.miniplayer.MiniPlayer
 import xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerDefaults
@@ -216,7 +217,7 @@ class MainActivity : ComponentActivity() {
     val isWelcomeScreen = currentRoute == WelcomeScreen
     
     val targetBottomPadding = if (isMainScreen && !hideNavigationBar) {
-      if (miniPlayerState.isExpanded) 8.dp else 88.dp
+      if (miniPlayerState.isExpanded) 8.dp else 72.dp
     } else 8.dp
     val animatedBottomPadding by androidx.compose.animation.core.animateDpAsState(
       targetValue = targetBottomPadding,
@@ -230,11 +231,16 @@ class MainActivity : ComponentActivity() {
       animationSpec = tween(220),
       label = "miniPlayerHeight"
     )
-    val navBarHeight = if (isMainScreen && !hideNavigationBar) 80.dp else 0.dp
+    val navBarHeight = if (isMainScreen && !hideNavigationBar) 64.dp else 0.dp
     val totalNavigationBarHeight = navBarHeight + miniPlayerHeight
 
-    BackHandler(enabled = isMainScreen || isWelcomeScreen) {
-      (context as? Activity)?.moveTaskToBack(true)
+    // System back: pop one entry while a screen is on top of the root, otherwise send the
+    // task to the background. Popping the root entry is never allowed, because NavDisplay
+    // throws "backstack cannot be empty".
+    BackHandler(enabled = typedBackstack.size > 1 || isMainScreen || isWelcomeScreen) {
+      if (!typedBackstack.navigateBack()) {
+        (context as? Activity)?.moveTaskToBack(true)
+      }
     }
 
     // Provide shared states to all screens
@@ -246,7 +252,7 @@ class MainActivity : ComponentActivity() {
       Box(modifier = Modifier.fillMaxSize()) {
         NavDisplay(
           backStack = typedBackstack,
-          onBack = { typedBackstack.removeLastOrNull() },
+          onBack = { typedBackstack.navigateBack() },
           entryProvider = { route -> NavEntry(route) { route.Content() } },
           popTransitionSpec = {
             (

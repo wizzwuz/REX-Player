@@ -29,6 +29,12 @@ class PlaybackManager(
     private var resyncJob: Job? = null
     @Volatile private var lastSeekAt = 0L
 
+    /**
+     * Invoked whenever the user starts a seek, so the player can drop any pending jump highlight
+     * (chapter/bookmark) that the new position no longer describes.
+     */
+    var onSeekRequested: (() -> Unit)? = null
+
     private fun canAccessMpv(): Boolean =
         MPVLifecycleLock.isNativeInitialized && !MPVLifecycleLock.isTearingDown.value
 
@@ -62,6 +68,7 @@ class PlaybackManager(
      */
     fun seekTo(scope: CoroutineScope, position: Int, abLoopA: Double?, abLoopB: Double?) {
         seekJob?.cancel()
+        onSeekRequested?.invoke()
         if (!canAccessMpv()) return
         seekJob = scope.launch(Dispatchers.IO) {
             if (!isActive || !canAccessMpv()) return@launch
@@ -100,12 +107,56 @@ class PlaybackManager(
     }
 
     /**
+     * Performs an exact absolute seek without any coalescing delay.
+     *
+     * Used for discrete jumps to a known timestamp (chapter/bookmark taps, chapter skipping) where
+     * landing on the keyframe *before* the target is visibly wrong: the UI would briefly show the
+     * previous chapter. Mirrors [seekTo] but always uses an exact mode, bypasses the throttle so
+     * taps feel immediate, and keeps the fractional timestamp so a chapter starting at 1234.87s is
+     * not requested as 1234.0s (which is still inside the previous chapter).
+     */
+    fun seekToExact(scope: CoroutineScope, position: Double, abLoopA: Double?, abLoopB: Double?) {
+        if (!canAccessMpv()) return
+        seekJob?.cancel()
+        seekJob = scope.launch(Dispatchers.IO) {
+            if (!isActive || !canAccessMpv()) return@launch
+            lastSeekAt = SystemClock.elapsedRealtime()
+            val maxDuration = runCatching { MPVLib.getPropertyDouble("duration") }.getOrNull() ?: 0.0
+
+            var clampedPosition = position
+            if (abLoopA != null && abLoopB != null) {
+                val min = minOf(abLoopA, abLoopB)
+                val max = maxOf(abLoopA, abLoopB)
+                clampedPosition = clampedPosition.coerceIn(min, max)
+            }
+
+            if (maxDuration > 0) {
+                // Allow a hair of tolerance so seeking to the very end of a chapter list is valid.
+                if (clampedPosition !in 0.0..(maxDuration + 0.5)) return@launch
+            } else {
+                if (clampedPosition < 0.0) return@launch
+            }
+
+            if (!isActive || !canAccessMpv()) return@launch
+
+            // Deliberately leave hr-seek alone: it is a global mpv option, so setting it here would
+            // silently change every subsequent seek (scrubbing, gestures, AB loop) for the rest of
+            // the session. "absolute+exact" is already precise on its own; hr-seek only trades
+            // speed for dropping the pause-while-seeking behaviour.
+            ensureUnmuted()
+            if (!canAccessMpv()) return@launch
+            runCatching { MPVLib.command("seek", clampedPosition.toString(), "absolute+exact") }
+        }
+    }
+
+    /**
      * Performs a relative seek immediately with concurrency protection and stream-safe seek modes.
      */
     fun seekBy(scope: CoroutineScope, offset: Int) {
         if (offset == 0 || !canAccessMpv()) return
         
         seekJob?.cancel()
+        onSeekRequested?.invoke()
         seekJob = scope.launch(Dispatchers.IO) {
             if (!isActive || !canAccessMpv()) return@launch
             val duration = runCatching { MPVLib.getPropertyInt("duration") }.getOrNull() ?: 0
