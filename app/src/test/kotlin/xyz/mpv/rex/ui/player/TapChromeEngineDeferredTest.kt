@@ -15,6 +15,8 @@ private const val WINDOW = 300L
 private fun deferredCfg(
   instantCenter: Boolean = false,
   instantSides: Boolean = false,
+  deferSides: Boolean = false,
+  deferCenter: Boolean = false,
   seekRight: Boolean = true,
   deferToggle: Boolean = true,
 ) = TapConfig(
@@ -22,6 +24,8 @@ private fun deferredCfg(
   height = 800f,
   instantCenter = instantCenter,
   instantSides = instantSides,
+  deferSides = deferSides,
+  deferCenter = deferCenter,
   seekRight = seekRight,
   doubleTapMs = WINDOW,
   deferToggle = deferToggle,
@@ -434,5 +438,42 @@ class TapChromeEngineDeferredTest {
     )
     assertEquals(expected, replay(withEnv = false, instantCenter = true))
     assertEquals(expected, replay(withEnv = true, instantCenter = true))
+  }
+
+  // Deferred single-tap action ------------------------------------------------------------------
+
+  @Test
+  fun deferredSidesSingleTap_firesActionAtDeadlineWithoutChrome() {
+    val r = DeferredRig(false, deferredCfg(deferSides = true, deferToggle = false))
+    r.tap(0, x = 900f)
+    assertEquals(0, r.log.size)
+    assertEquals(300L, r.requestsDeadline())
+    r.tick(299)
+    assertEquals(0, r.log.size)
+    r.tick(300)
+    assertEquals(listOf("right:single"), r.log)
+    assertEquals(false, r.shown)
+  }
+
+  @Test
+  fun deferredSidesDoubleTapSeek_cancelsPendingSingleTap() {
+    val r = DeferredRig(false, deferredCfg(deferSides = true, deferToggle = false))
+    r.tap(0, x = 900f)
+    r.tap(150, x = 900f)
+    r.tickUntilIdle(1000)
+    assertEquals(listOf("right:double"), r.log)
+    assertEquals(false, r.shown)
+  }
+
+  @Test
+  fun deferredSidesSeekChain_emitsNoSingleTaps() {
+    val r = DeferredRig(false, deferredCfg(deferSides = true, deferToggle = false))
+    for (i in 0 until 5) {
+      r.tap(i * 150L, x = 900f)
+    }
+    r.tickUntilIdle(2000)
+    assertEquals(4, r.log.count { it == "right:double" })
+    assertEquals(0, r.log.count { it == "right:single" })
+    assertEquals(false, r.shown)
   }
 }

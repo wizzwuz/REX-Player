@@ -31,6 +31,12 @@ internal data class TapConfig(
   val reverse: Boolean = false,
   val instantCenter: Boolean = false,
   val instantSides: Boolean = false,
+  val deferCenter: Boolean = false,
+  val deferSides: Boolean = false,
+  val deferLeft: Boolean = false,
+  val deferRight: Boolean = false,
+  val instantLeft: Boolean = false,
+  val instantRight: Boolean = false,
   val seekLeft: Boolean = true,
   val seekRight: Boolean = true,
   val doubleTapMs: Long = 300,
@@ -82,10 +88,11 @@ internal class TapChromeEngine(
   private var shownBefore = false
   private var committed = false
 
-  // Only used when config().deferToggle is true.
+  // Used for deferred chrome toggle or deferred single-tap action.
   private var pending = false
   private var pendingDeadline = 0L
   private var togglable = false
+  private var pendingActionRegion: TapRegion? = null
 
   // Latched at DOWN, consumed at UP.
   private var kind = Kind.First
@@ -166,11 +173,12 @@ internal class TapChromeEngine(
       count >= 2 && time - lastTime < c.doubleTapMs -> Kind.Swallowed
       else -> Kind.First
     }
-    // A pending deferred toggle is only cancelled by the DOWN that can still make it a double tap.
+    // A pending deferred toggle or action is only cancelled by the DOWN that can still make it a double tap.
     // Any other DOWN proves the pending tap was a single tap, so honour it before this one starts.
     if (pending) {
       if (closesWindow) {
         pending = false
+        pendingActionRegion = null
       } else {
         flush(time, env, force = true)
       }
@@ -204,6 +212,7 @@ internal class TapChromeEngine(
       if (kind == Kind.First) {
         restore()
         pending = false
+        pendingActionRegion = null
         togglable = false
       }
       return
@@ -214,6 +223,7 @@ internal class TapChromeEngine(
     // for either would fire after the gesture as a spurious flash, so drop it here.
     if (kind == Kind.SecondOfDouble || kind == Kind.Swallowed) {
       pending = false
+      pendingActionRegion = null
       togglable = false
     }
     when (kind) {
@@ -238,8 +248,17 @@ internal class TapChromeEngine(
         lastX = downX
         lastY = downY
         lastRegion = region
+        val zone = c.height * 0.25f
+        val inZone = downY < zone || downY > c.height - zone
         if (spent) {
           listener.onAction(region, isSingleTap = true)
+        } else if (hasDeferred(region, c) && !inZone) {
+          if (!env.panelOrSheetOpen && !env.locked) {
+            pending = true
+            pendingDeadline = downTime + c.doubleTapMs
+            pendingActionRegion = region
+            togglable = false
+          }
         } else if (!env.panelOrSheetOpen) {
           // The chrome commit lives here, not at DOWN: the env is read fresh at lift, so a panel
           // that opened during the gesture is honoured.
@@ -267,14 +286,26 @@ internal class TapChromeEngine(
   }
 
   /**
-   * Performs a queued deferred toggle if it is due. The chrome state is read fresh from [env] at
-   * fire time, because anything may have opened or closed between the tap and the deadline.
+   * Performs a queued deferred toggle or deferred single-tap action if it is due. The state is read
+   * fresh from [env] at fire time, because anything may have opened or closed between the tap and the deadline.
    */
   private fun flush(now: Long, env: TapEnv, force: Boolean) {
     if (!pending || (!force && now < pendingDeadline)) return
     pending = false
+    val actionRegion = pendingActionRegion
+    pendingActionRegion = null
+    val wasTogglable = togglable
     togglable = false
+
     if (env.locked || env.panelOrSheetOpen) return
+
+    if (actionRegion != null) {
+      listener.onAction(actionRegion, isSingleTap = true)
+      return
+    }
+
+    if (!wasTogglable) return
+
     // Late commit, so a DOWN that races this deadline as a double tap still restores correctly.
     shownBefore = env.chromeShown
     snapshotWrites++
@@ -301,7 +332,18 @@ internal class TapChromeEngine(
   }
 
   private fun hasInstant(r: TapRegion, c: TapConfig) =
-    if (r == TapRegion.Center) c.instantCenter else c.instantSides
+    when (r) {
+      TapRegion.Center -> c.instantCenter && !c.deferCenter
+      TapRegion.Left -> (c.instantSides || c.instantLeft) && !(c.deferSides || c.deferLeft)
+      TapRegion.Right -> (c.instantSides || c.instantRight) && !(c.deferSides || c.deferRight)
+    }
+
+  private fun hasDeferred(r: TapRegion, c: TapConfig) =
+    when (r) {
+      TapRegion.Center -> c.deferCenter
+      TapRegion.Left -> c.deferSides || c.deferLeft
+      TapRegion.Right -> c.deferSides || c.deferRight
+    }
 
   private fun isSeek(r: TapRegion, c: TapConfig) =
     when (r) {

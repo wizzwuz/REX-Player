@@ -280,13 +280,22 @@ fun GestureHandler(
         }
       },
       config = {
+        val hasLeftDoubleTap = gesturePreferences.leftSingleActionGesture.get() != SingleActionGesture.None
+        val hasRightDoubleTap = gesturePreferences.rightSingleActionGesture.get() != SingleActionGesture.None
+        val hasCenterDoubleTap = gesturePreferences.centerSingleActionGesture.get() != SingleActionGesture.None
         TapConfig(
           width = tapViewportSize.width,
           height = tapViewportSize.height,
           seekAreaPercent = currentSeekAreaPercent.toFloat(),
           reverse = currentReverseDoubleTap,
-          instantCenter = currentUseSingleTapForCenter,
-          instantSides = currentUseSingleTapForLeftRight,
+          instantCenter = currentUseSingleTapForCenter && !hasCenterDoubleTap,
+          instantSides = currentUseSingleTapForLeftRight && !hasLeftDoubleTap && !hasRightDoubleTap,
+          deferCenter = currentUseSingleTapForCenter && hasCenterDoubleTap,
+          deferSides = currentUseSingleTapForLeftRight && (hasLeftDoubleTap || hasRightDoubleTap),
+          deferLeft = currentUseSingleTapForLeftRight && hasLeftDoubleTap,
+          deferRight = currentUseSingleTapForLeftRight && hasRightDoubleTap,
+          instantLeft = currentUseSingleTapForLeftRight && !hasLeftDoubleTap,
+          instantRight = currentUseSingleTapForLeftRight && !hasRightDoubleTap,
           seekLeft = gesturePreferences.leftSingleActionGesture.get() == SingleActionGesture.Seek,
           seekRight = gesturePreferences.rightSingleActionGesture.get() == SingleActionGesture.Seek,
           doubleTapMs = android.view.ViewConfiguration.getDoubleTapTimeout().toLong(),
@@ -305,18 +314,16 @@ fun GestureHandler(
     }
   }
 
-  // Deferred controls (instant controls off) do not poll: the engine names its next deadline and
-  // we sleep exactly that long. Down and up are dispatched on the main thread, so a second tap is
+  // Deferred controls (instant controls off or deferred tap action) do not poll: the engine names its
+  // next deadline and we sleep exactly that long. Down and up are dispatched on the main thread, so a second tap is
   // always handled before a deadline that is still in its future.
-  val tapDeadline: Long? = if (instantControlsToggle) null else tapChromeEngine.nextDeadline()
-  if (!instantControlsToggle) {
-    LaunchedEffect(tapDeadline) {
-      val deadline = tapDeadline ?: return@LaunchedEffect
-      delay((deadline - SystemClock.uptimeMillis()).coerceAtLeast(0))
-      tapChromeEngine.tick(SystemClock.uptimeMillis(), tapEnvNow())
-      // The tick toggles the chrome, so this recomposes and restarts the effect with the next
-      // deadline: null after a flush, or a fresh one if another toggle was queued meanwhile.
-    }
+  val tapDeadline: Long? = tapChromeEngine.nextDeadline()
+  LaunchedEffect(tapDeadline) {
+    val deadline = tapDeadline ?: return@LaunchedEffect
+    delay((deadline - SystemClock.uptimeMillis()).coerceAtLeast(0))
+    tapChromeEngine.tick(SystemClock.uptimeMillis(), tapEnvNow())
+    // The tick toggles the chrome or fires the action, so this recomposes and restarts the effect with the next
+    // deadline: null after a flush, or a fresh one if another toggle/action was queued meanwhile.
   }
 
   // Reset double-tap seek state when seeking stops
