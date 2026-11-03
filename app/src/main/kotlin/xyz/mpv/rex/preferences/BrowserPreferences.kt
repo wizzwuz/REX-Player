@@ -123,6 +123,7 @@ class BrowserPreferences(
 
   // Visibility preferences for video card chips
   val showVideoThumbnails = preferenceStore.getBoolean("show_video_thumbnails", true)
+  val showFileExtension = preferenceStore.getBoolean("show_file_extension", false)
   val showSizeChip = preferenceStore.getBoolean("show_size_chip", true)
   // Metadata-dependent chips (disabled by default for better performance)
   val showResolutionChip = preferenceStore.getBoolean("show_resolution_chip", false)
@@ -149,6 +150,9 @@ class BrowserPreferences(
   val showAudioFiles = preferenceStore.getBoolean("show_audio_files", false)
   val includeNoMediaContent = preferenceStore.getBoolean("include_no_media_content", false)
   val showTreeViewPath = preferenceStore.getBoolean("show_tree_view_path", false)
+
+  // Smart tree flattening: hide folders without media in Tree View when they only lead to a single media folder
+  val flattenFolders = preferenceStore.getBoolean("flatten_folders", true)
 
   // RexShorts preferences
   val enableShorts = preferenceStore.getBoolean("enable_shorts", true)

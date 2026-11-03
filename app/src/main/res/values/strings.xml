@@ -339,6 +339,17 @@
     <string name="pref_subtitles_wyzie_api_key_not_set">Not set</string>
     <string name="pref_subtitles_wyzie_api_key_masked">••••••••••••••••••••••</string>
 
+    <!-- Online subtitle search: states and failures -->
+    <string name="subtitle_search_retry">Retry</string>
+    <string name="subtitle_search_api_key_required_title">API key required</string>
+    <string name="subtitle_search_api_key_required_summary">Subtitle search needs a free Wyzie API key. Add it in Settings › Subtitles › Subtitle Search.</string>
+    <string name="subtitle_search_rate_limited_title">Too many searches</string>
+    <string name="subtitle_search_rate_limited_summary">The subtitle server is rate limiting requests. Wait a minute before trying again.</string>
+    <string name="subtitle_search_network_error_title">Can’t reach the subtitle server</string>
+    <string name="subtitle_search_network_error_summary">Check your internet connection and try again.</string>
+    <string name="subtitle_search_failed_title">No subtitles found</string>
+    <string name="subtitle_search_failed_summary">Try the full title of the movie or show, or pick the right one from the suggestions.</string>
+
     <string name="pref_audio">Audio</string>
     <string name="pref_audio_summary">Preferred languages, audio channels, pitch correction</string>
     <string name="pref_audio_pitch_correction_title">Enable audio pitch correction</string>
@@ -672,6 +683,8 @@
     <string name="pref_player_show_seekbar_chapters_summary">Display chapter markers on the seekbar</string>
     <string name="pref_player_show_seekbar_read_ahead_title">Show buffered content</string>
     <string name="pref_player_show_seekbar_read_ahead_summary">Display visual hint of buffered content on the seekbar</string>
+    <string name="pref_player_speed_adjusted_remaining_title">Speed-based remaining time</string>
+    <string name="pref_player_speed_adjusted_remaining_summary">Adjust the remaining time by the playback speed (a 2-minute video at 2x shows 1 minute remaining)</string>
     <string name="pref_player_hide_osd_text_title">Hide player OSD text</string>
     <string name="pref_player_hide_osd_text_summary">Hide the default mpv OSD text during seeking or subtitle seeking</string>
     <string name="pref_player_keep_screen_on_when_paused_title">Keep screen on when paused</string>
@@ -804,6 +817,8 @@
     <string name="pref_library_roots_clear_all_confirm_message">Are you sure you want to remove all added library scan roots? Persisted permissions will be released.</string>
     <string name="pref_show_tree_view_path_title">Show path breadcrumbs</string>
     <string name="pref_show_tree_view_path_summary">Show the folder path breadcrumbs at the top of Tree View</string>
+    <string name="pref_flatten_folders_title">Flatten folders in Tree View</string>
+    <string name="pref_flatten_folders_summary">Hide folders without media when they only lead to a single media folder</string>
     <string name="pref_media_library_title">Media &amp; Library</string>
     <string name="pref_media_library_summary">Manage scan roots, .nomedia files, blacklisted folders, and indexing</string>
     <string name="pref_category_content_discovery">Content &amp; Discovery</string>
@@ -1055,13 +1070,6 @@
 
     <!-- Update features -->
     <string name="pref_category_updates">Updates</string>
-    <string name="pref_category_ytdlp_updates">REX Ytdlp Updates</string>
-    <string name="pref_ytdlp_auto_check_updates">Auto Check for Companion Updates</string>
-    <string name="pref_ytdlp_auto_check_updates_summary">Check for new REX Ytdlp companion releases on startup</string>
-    <string name="pref_ytdlp_check_updates">Check for Companion Updates</string>
-    <string name="pref_ytdlp_check_updates_summary">Manually check for new REX Ytdlp companion releases on GitHub</string>
-    <string name="pref_ytdlp_up_to_date">REX Ytdlp companion app is up to date!</string>
-    <string name="pref_ytdlp_check_updates_failed">Failed to check for REX Ytdlp companion app updates</string>
     <string name="pref_about_auto_check_updates">Auto Check for Updates</string>
     <string name="pref_about_auto_check_updates_summary">Check for new versions on startup</string>
     <string name="pref_about_check_updates">Check for Updates</string>
@@ -1147,6 +1155,7 @@
     <string name="permission_required_photos_videos">mpvRex requires \"Photos and videos\" permission to access and play your video files stored on your device.</string>
     <string name="permission_required_storage">mpvRex requires \"Storage\" permission to access and play your media files stored on your device.</string>
     <string name="permission_required_all_files">mpvRex requires \"All file access\" permission to discover media and subtitles on your device due to a change in security policy in Android 11 and later versions.</string>
+    <string name="permission_settings_unavailable">Could not open the system settings on this device. Please grant \"All files access\" for REX Player manually in Settings → Apps.</string>
     <string name="permission_explanation_tiramisu_plus">On Android 13 and above, this permission allows the app to read video files from your device\'s storage, including Downloads, Movies, and DCIM folders.</string>
     <string name="permission_explanation_pre_tiramisu">This permission allows the app to read media files from your device\'s storage to play videos and audio.</string>
 
@@ -1245,6 +1254,7 @@
 
     <!-- Network Streaming Screen -->
     <string name="network_recent_links">Recent Links</string>
+    <string name="network_clear_all_links">Clear all</string>
     <string name="network_stream_link_hint">Type or paste a URL</string>
     <string name="network_local_network">Local Network</string>
     <string name="network_share_unreachable">Can\'t reach the network share.</string>
@@ -1297,7 +1307,9 @@
     <string name="pref_player_keep_screen_on_when_paused_summary_on">Screen stays awake while video is paused</string>
     <string name="pref_player_keep_screen_on_when_paused_summary_off">Screen can turn off while video is paused</string>
     <string name="pref_player_auto_pip">Auto Picture-in-Picture</string>
-    <string name="pref_player_auto_pip_summary">Automatically enter PIP mode when pressing home or back</string>
+    <string name="pref_player_auto_pip_summary">Automatically enter PIP mode when pressing Back or Home</string>
+    <string name="pref_player_pip_on_home">PiP on Home</string>
+    <string name="pref_player_pip_on_home_summary">Enter PiP only when pressing Home, Back closes the player</string>
     <string name="pref_player_dynamic_speed_overlay">Dynamic Speed Overlay</string>
     <string name="pref_player_dynamic_speed_overlay_summary">Show advance overlay for speed control during long press and swipe</string>
     <string name="pref_player_show_speed_indicator_overlay">Show Speed Indicator Overlay</string>
@@ -1535,6 +1547,7 @@
     <string name="fields">Fields</string>
     <string name="field_video_thumbnails">Video Thumbnails</string>
     <string name="field_full_name">Full Name</string>
+    <string name="field_file_extension">File Extension</string>
     <string name="field_total_videos">Total Videos</string>
     <string name="field_total_duration">Total Duration</string>
     <string name="field_folder_size">Folder Size</string>

@@ -1445,6 +1445,8 @@ fun PlayerControls(
               },
         ) {
           val invertDuration by playerPreferences.invertDuration.collectAsState()
+          val speedAdjustedRemaining by playerPreferences.speedAdjustedRemainingTime.collectAsState()
+          val playbackSpeed by MPVLib.propFloat["speed"].collectAsState()
           val seekbarStyle by appearancePreferences.seekbarStyle.collectAsState()
           val effectiveDuration = if (preciseDuration > 0f) preciseDuration else if (isLoadingFile) 0f else duration?.toFloat() ?: 0f
 
@@ -1525,6 +1527,8 @@ fun PlayerControls(
                 viewModel.showControls()
               },
               timersInverted = Pair(false, invertDuration),
+              speed = { MPVLib.getPropertyFloat("speed") ?: playbackSpeed ?: 1f },
+              speedAdjustedRemaining = speedAdjustedRemaining,
               durationTimerOnCLick = {
                 resetControlsTimestamp = System.currentTimeMillis()
                 playerPreferences.invertDuration.set(!invertDuration)

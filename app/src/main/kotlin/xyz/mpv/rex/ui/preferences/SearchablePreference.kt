@@ -180,6 +180,14 @@ object SearchablePreferences {
                 targetIndex = 3,
             ))
             add(SearchablePreference(
+                titleRes = R.string.pref_flatten_folders_title,
+                summaryRes = R.string.pref_flatten_folders_summary,
+                keywords = listOf("flatten", "flat", "tree view", "nested", "empty", "merge", "folder hierarchy"),
+                category = "Media & Library",
+                screen = MediaLibraryPreferencesScreen,
+                targetIndex = 3,
+            ))
+            add(SearchablePreference(
                 titleRes = R.string.pref_appearance_show_network_thumbnails_title,
                 summaryRes = R.string.pref_appearance_show_network_thumbnails_summary,
                 keywords = listOf("network", "thumbnail", "stream", "preview", "images"),
@@ -251,6 +259,14 @@ object SearchablePreferences {
                 titleRes = R.string.pref_player_show_seekbar_read_ahead_title,
                 summaryRes = R.string.pref_player_show_seekbar_read_ahead_summary,
                 keywords = listOf("buffer", "buffered", "cache", "read ahead", "visual hint", "seekbar", "progress", "player"),
+                category = "Player Layout",
+                screen = PlayerControlsPreferencesScreen,
+                targetIndex = 7,
+            ))
+            add(SearchablePreference(
+                titleRes = R.string.pref_player_speed_adjusted_remaining_title,
+                summaryRes = R.string.pref_player_speed_adjusted_remaining_summary,
+                keywords = listOf("speed", "remaining", "time", "timestamp", "timer", "clock", "seekbar", "duration", "player"),
                 category = "Player Layout",
                 screen = PlayerControlsPreferencesScreen,
                 targetIndex = 7,
@@ -1381,22 +1397,6 @@ object SearchablePreferences {
                 title = "Prefer Nightly Channel",
                 summary = "Receive cutting-edge yt-dlp nightly extractor fixes",
                 keywords = listOf("nightly", "channel", "updates", "yt-dlp", "extractor", "cutting-edge"),
-                category = "Integrations",
-                screen = YtdlSettingsScreen,
-                targetIndex = 2,
-            ))
-            add(SearchablePreference(
-                titleRes = R.string.pref_ytdlp_auto_check_updates,
-                summaryRes = R.string.pref_ytdlp_auto_check_updates_summary,
-                keywords = listOf("auto check", "updates", "ytdlp", "companion", "addon", "startup"),
-                category = "Integrations",
-                screen = YtdlSettingsScreen,
-                targetIndex = 2,
-            ))
-            add(SearchablePreference(
-                titleRes = R.string.pref_ytdlp_check_updates,
-                summaryRes = R.string.pref_ytdlp_check_updates_summary,
-                keywords = listOf("check", "updates", "ytdlp", "companion", "addon", "github"),
                 category = "Integrations",
                 screen = YtdlSettingsScreen,
                 targetIndex = 2,

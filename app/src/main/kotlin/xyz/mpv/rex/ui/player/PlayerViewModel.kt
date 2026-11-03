@@ -912,6 +912,14 @@ class PlayerViewModel(
     _isLoadingFile.value = true
     _isLoadingUrl.value = isNetwork
     _isNetworkStream.value = isNetwork
+
+    if (
+        playerUpdate.value is PlayerUpdates.ResumedFrom ||
+        playerUpdate.value is PlayerUpdates.PromptResume
+    ) {
+      playerUpdate.value = PlayerUpdates.None
+    }
+
     if (externalAudioTracks.isEmpty()) {
       _precisePosition.value = 0f
       if (primaryVideoDuration.value == null) {
@@ -1001,6 +1009,12 @@ class PlayerViewModel(
   // --- Media Search and Series Management ---
 
   fun searchMedia(query: String) = _subtitleManager.searchMedia(query)
+
+  fun findMedia(query: String) = _subtitleManager.findMedia(query)
+
+  fun hasSubtitleApiKey(): Boolean = _subtitleManager.hasApiKey()
+
+  fun clearSubtitleSearchError() = _subtitleManager.clearSearchError()
 
   fun selectMedia(result: xyz.mpv.rex.repository.wyzie.WyzieTmdbResult) = _subtitleManager.selectMedia(result)
 
@@ -1365,7 +1379,7 @@ class PlayerViewModel(
 
   private var _cachedVideoRotation = 0
 
-  // Restores the user's preferred video aspect ratio and restores pan/zoom settings
+  // Prepares pan and advanced zoom; aspect ratio and regular zoom are finalized with playback state.
   fun resetVisualPreferences() {
 
     // Cache the video rotation once it's available (used by stretch mode)
@@ -1389,18 +1403,12 @@ class PlayerViewModel(
       changeVideoAspect(savedAspect, showUpdate = false, resetZoomAndPan = false, persistToPreferences = false)
     }
 
-    // 2. Load zoom and pan preferences or sync from mpv.conf/engine defaults
-    val prefZoom = playerPreferences.defaultVideoZoom.get()
+    // Aspect ratio and regular zoom are restored together after the video's saved state is available.
+    _videoZoom.value = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f
+
+    // Restore pan preferences or sync from mpv.conf/engine defaults.
     val prefPanX = playerPreferences.defaultVideoPanX.get()
     val prefPanY = playerPreferences.defaultVideoPanY.get()
-
-    if (prefZoom != 0f) {
-      MPVLib.setPropertyDouble("video-zoom", prefZoom.toDouble())
-      _videoZoom.value = prefZoom
-    } else {
-      val mpvZoom = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f
-      _videoZoom.value = mpvZoom
-    }
 
     if (prefPanX != 0f || prefPanY != 0f) {
       MPVLib.setPropertyDouble("video-pan-x", prefPanX.toDouble())
@@ -1440,6 +1448,33 @@ class PlayerViewModel(
     } else {
       changeVideoAspect(_videoAspect.value, showUpdate = false, resetZoomAndPan = false, persistToPreferences = false)
     }
+    setVideoZoom(_videoZoom.value, persistToPreferences = false)
+  }
+
+  fun restoreAspectAndZoom(
+    aspect: VideoAspect,
+    customAspectRatio: Double,
+    zoom: Float,
+  ) {
+    _cachedVideoRotation = MPVLib.getPropertyInt("video-params/rotate") ?: 0
+
+    if (customAspectRatio > 0.0) {
+      setCustomAspectRatio(
+        customAspectRatio,
+        resetZoomAndPan = false,
+        showUpdate = false,
+        persistToPreferences = false,
+      )
+    } else {
+      changeVideoAspect(
+        aspect,
+        showUpdate = false,
+        resetZoomAndPan = false,
+        persistToPreferences = false,
+      )
+    }
+
+    setVideoZoom(zoom, persistToPreferences = false)
   }
 
   fun changeVideoAspect(
@@ -1626,9 +1661,13 @@ class PlayerViewModel(
 
   // ==================== Video Zoom ====================
 
-  fun setVideoZoom(zoom: Float) {
+  fun setVideoZoom(zoom: Float, persistToPreferences: Boolean = true) {
     _videoZoom.value = zoom
     MPVLib.setPropertyDouble("video-zoom", zoom.toDouble())
+
+    if (persistToPreferences && playerPreferences.rememberVideoAspect.get()) {
+      playerPreferences.defaultVideoZoom.set(zoom)
+    }
   }
 
   // Video pan (for pan & zoom feature)
