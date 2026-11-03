@@ -3081,6 +3081,168 @@ class PlayerActivity :
 
   fun getPlaylistWindowOffset(): Int = playlistLoader.getPlaylistWindowOffset()
 
+  fun getCurrentVideoUri(): Uri? {
+    viewModel.playlistManager.getCurrentUri()?.let { return it }
+    extractUriFromIntent(intent)?.let { return it }
+    val path = runCatching { MPVLib.getPropertyString("path") }.getOrNull()
+    if (!path.isNullOrBlank()) {
+      return when {
+        path.startsWith("content://") || path.startsWith("file://") || path.startsWith("http://") || path.startsWith("https://") -> Uri.parse(path)
+        else -> Uri.fromFile(java.io.File(path))
+      }
+    }
+    return null
+  }
+
+  fun openMediaInfo() {
+    val uri = getCurrentVideoUri()
+    if (uri == null || HttpUtils.isNetworkStream(uri)) {
+      android.widget.Toast.makeText(this, R.string.media_info_no_file_provided, android.widget.Toast.LENGTH_SHORT).show()
+      return
+    }
+
+    val intent = Intent(this, xyz.mpv.rex.ui.mediainfo.MediaInfoActivity::class.java).apply {
+      action = Intent.ACTION_VIEW
+      val safeUri = if (uri.scheme == "file") {
+        val file = java.io.File(uri.path ?: "")
+        if (file.exists()) {
+          runCatching {
+            androidx.core.content.FileProvider.getUriForFile(this@PlayerActivity, "${packageName}.provider", file)
+          }.getOrNull() ?: uri
+        } else {
+          uri
+        }
+      } else {
+        uri
+      }
+      data = safeUri
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    startActivity(intent)
+  }
+
+  fun getCurrentVideoPath(): String? {
+    val mpvPath = runCatching { MPVLib.getPropertyString("path") }.getOrNull()
+    val uri = getCurrentVideoUri()
+    return when {
+      !mpvPath.isNullOrBlank() && !mpvPath.startsWith("content://") && !mpvPath.startsWith("http://") && !mpvPath.startsWith("https://") -> {
+        if (mpvPath.startsWith("file://")) Uri.parse(mpvPath).path ?: mpvPath else mpvPath
+      }
+      uri != null && uri.scheme == "file" -> uri.path
+      uri != null && uri.scheme == "content" -> {
+        runCatching {
+          contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+              val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+              if (idx != -1) cursor.getString(idx) else null
+            } else null
+          }
+        }.getOrNull() ?: mpvPath
+      }
+      else -> mpvPath
+    }
+  }
+
+  fun isCurrentVideoLocal(): Boolean {
+    val uri = getCurrentVideoUri()
+    val mpvPath = runCatching { MPVLib.getPropertyString("path") }.getOrNull()
+    if (uri != null && HttpUtils.isNetworkStream(uri)) return false
+    if (!mpvPath.isNullOrBlank() && (mpvPath.startsWith("http://") || mpvPath.startsWith("https://") || mpvPath.startsWith("rtmp://") || mpvPath.startsWith("rtsp://") || mpvPath.startsWith("ytdl://"))) {
+      return false
+    }
+    return uri != null || !mpvPath.isNullOrBlank()
+  }
+
+  fun deleteCurrentlyPlayingVideo() {
+    val uri = getCurrentVideoUri()
+    if (!isCurrentVideoLocal()) {
+      android.widget.Toast.makeText(this, "Cannot delete network streams", android.widget.Toast.LENGTH_SHORT).show()
+      return
+    }
+
+    val resolvedPath = getCurrentVideoPath() ?: ""
+    if (resolvedPath.isBlank() && uri == null) {
+      android.widget.Toast.makeText(this, R.string.media_info_no_file_provided, android.widget.Toast.LENGTH_SHORT).show()
+      return
+    }
+
+    lifecycleScope.launch {
+      val playlist = viewModel.playlistManager.playlist.value
+      val currentIndex = viewModel.playlistManager.currentIndex.value
+      val hasMultiple = playlist.size > 1
+
+      // Stop playback before deleting the file
+      runCatching { MPVLib.command("stop") }
+
+      val deleted = withContext(Dispatchers.IO) {
+        var isDeleted = false
+        if (resolvedPath.isNotBlank()) {
+          try {
+            val file = java.io.File(resolvedPath)
+            if (file.exists() && file.delete()) {
+              isDeleted = true
+            }
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete file directly: $resolvedPath", e)
+          }
+        }
+
+        if (uri != null && uri.scheme == "content") {
+          try {
+            val rows = contentResolver.delete(uri, null, null)
+            if (rows > 0) isDeleted = true
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete content URI: $uri", e)
+          }
+        } else if (resolvedPath.isNotBlank()) {
+          try {
+            contentResolver.delete(
+              MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+              "${MediaStore.Video.Media.DATA} = ?",
+              arrayOf(resolvedPath)
+            )
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete from MediaStore: $resolvedPath", e)
+          }
+        }
+
+        if (isDeleted || resolvedPath.isNotBlank()) {
+          if (resolvedPath.isNotBlank()) {
+            RecentlyPlayedOps.onVideoDeleted(resolvedPath)
+            xyz.mpv.rex.utils.media.PlaybackStateOps.onVideoDeleted(resolvedPath)
+            runCatching {
+              android.media.MediaScannerConnection.scanFile(this@PlayerActivity, arrayOf(resolvedPath), null, null)
+            }
+            runCatching {
+              val hybridIndex = org.koin.core.context.GlobalContext.get().getOrNull<xyz.mpv.rex.database.repository.HybridMediaIndexRepository>()
+              hybridIndex?.removeEntries(listOf(resolvedPath))
+            }
+          }
+          xyz.mpv.rex.utils.media.MediaLibraryEvents.notifyChanged()
+        }
+        isDeleted
+      }
+
+      if (deleted) {
+        android.widget.Toast.makeText(this@PlayerActivity, getString(R.string.delete) + " " + getString(R.string.generic_ok).lowercase(), android.widget.Toast.LENGTH_SHORT).show()
+        if (hasMultiple) {
+          val nextIdx = if (currentIndex < playlist.size - 1) currentIndex else currentIndex - 1
+          viewModel.playlistManager.removeAt(currentIndex)
+          val remaining = viewModel.playlistManager.playlist.value
+          if (remaining.isNotEmpty()) {
+            val targetIndex = nextIdx.coerceIn(0, remaining.lastIndex)
+            loadPlaylistItem(targetIndex)
+          } else {
+            finish()
+          }
+        } else {
+          finish()
+        }
+      } else {
+        android.widget.Toast.makeText(this@PlayerActivity, "Failed to delete video", android.widget.Toast.LENGTH_SHORT).show()
+      }
+    }
+  }
 
   companion object {
     /**

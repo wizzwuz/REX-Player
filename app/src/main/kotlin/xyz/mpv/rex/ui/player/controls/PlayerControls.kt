@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FastRewind
+import xyz.mpv.rex.ui.browser.dialogs.DeleteConfirmationDialog
 import xyz.mpv.rex.ui.player.controls.components.ControlsGroup
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalContext
@@ -2210,6 +2211,21 @@ fun PlayerControls(
         onConfirmResume = { pos -> viewModel.confirmResume(pos) },
         onRestart = { viewModel.restartFromBeginning() },
         onDismiss = { viewModel.dismissResumePrompt() },
+      )
+    }
+
+    if (viewModel.showDeleteConfirmation.value) {
+      DeleteConfirmationDialog(
+        isOpen = true,
+        onDismiss = { viewModel.dismissDeleteConfirmation() },
+        onConfirm = {
+          viewModel.dismissDeleteConfirmation()
+          onOpenSheet(Sheets.None)
+          activity.deleteCurrentlyPlayingVideo()
+        },
+        itemTypePluralRes = R.plurals.item_type_video_plural,
+        itemCount = 1,
+        itemNames = listOf(mediaTitle),
       )
     }
   }

@@ -1,5 +1,6 @@
 package xyz.mpv.rex.ui.player
 
+import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
@@ -10,6 +11,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -2359,6 +2361,32 @@ class PlayerViewModel(
   fun scheduleAmbientUpdate(delayMs: Long = 350) {}
 
   // ==================== Utility ====================
+
+  val showDeleteConfirmation = mutableStateOf(false)
+
+  fun requestDeleteCurrentVideo() {
+    showDeleteConfirmation.value = true
+  }
+
+  fun dismissDeleteConfirmation() {
+    showDeleteConfirmation.value = false
+  }
+
+  fun openMediaInfo(activity: Activity) {
+    (activity as? PlayerActivity)?.openMediaInfo()
+  }
+
+  fun deleteCurrentVideo(activity: Activity) {
+    (activity as? PlayerActivity)?.deleteCurrentlyPlayingVideo()
+  }
+
+  fun isCurrentMediaLocal(activity: Activity): Boolean {
+    return (activity as? PlayerActivity)?.isCurrentVideoLocal() ?: false
+  }
+
+  fun getCurrentMediaPath(activity: Activity): String? {
+    return (activity as? PlayerActivity)?.getCurrentVideoPath()
+  }
 
   fun showToast(message: String) {
     Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()

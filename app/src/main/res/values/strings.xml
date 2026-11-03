@@ -1118,6 +1118,8 @@
     <string name="btn_label_ambient_mode">Ambience Mode</string>
     <string name="btn_label_sleep_timer">Sleep Timer</string>
     <string name="btn_label_quality">Video Quality</string>
+    <string name="btn_label_media_info">Media Info</string>
+    <string name="btn_label_delete">Delete</string>
     <string name="btn_label_none">None</string>
 
     <string name="video_quality">Video Quality</string>

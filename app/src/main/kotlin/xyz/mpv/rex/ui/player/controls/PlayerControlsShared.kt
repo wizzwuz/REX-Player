@@ -58,6 +58,8 @@ import androidx.compose.material.icons.outlined.BlurOn
 import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -117,6 +119,8 @@ fun RenderPlayerButton(
   activity: PlayerActivity,
   buttonSize: Dp = 40.dp,
   isMoreSheet: Boolean = false,
+  onOpenDeleteDialog: () -> Unit = { viewModel.requestDeleteCurrentVideo() },
+  onDismissRequest: () -> Unit = {},
 ) {
   val appearancePreferences = org.koin.compose.koinInject<xyz.mpv.rex.preferences.AppearancePreferences>()
   val gesturePreferences = org.koin.compose.koinInject<xyz.mpv.rex.preferences.GesturePreferences>()
@@ -1415,6 +1419,89 @@ fun RenderPlayerButton(
             )
           }
         }
+      }
+    }
+
+    PlayerButton.MEDIA_INFO -> {
+      if (isMoreSheet) {
+        Surface(
+          shape = itemShape,
+          color = surfaceColor,
+          contentColor = contentColor,
+          border = borderColor,
+          modifier = Modifier
+            .height(buttonSize)
+            .clip(itemShape)
+            .clickable {
+              onDismissRequest()
+              activity.openMediaInfo()
+            }
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.smaller)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Info,
+              contentDescription = null,
+              modifier = Modifier.size(24.dp)
+            )
+            Text(
+              text = stringResource(R.string.media_info_title),
+              style = MaterialTheme.typography.bodyMedium,
+              maxLines = 1,
+            )
+          }
+        }
+      } else {
+        ControlsButton(
+          icon = Icons.Default.Info,
+          onClick = { activity.openMediaInfo() },
+          modifier = Modifier.size(buttonSize),
+        )
+      }
+    }
+
+    PlayerButton.DELETE_FILE -> {
+      if (isMoreSheet) {
+        Surface(
+          shape = itemShape,
+          color = surfaceColor,
+          contentColor = MaterialTheme.colorScheme.error,
+          border = borderColor,
+          modifier = Modifier
+            .height(buttonSize)
+            .clip(itemShape)
+            .clickable {
+              onOpenDeleteDialog()
+            }
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.smaller)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Delete,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.error,
+              modifier = Modifier.size(24.dp)
+            )
+            Text(
+              text = stringResource(R.string.delete),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.error,
+              maxLines = 1,
+            )
+          }
+        }
+      } else {
+        ControlsButton(
+          icon = Icons.Default.Delete,
+          onClick = { onOpenDeleteDialog() },
+          modifier = Modifier.size(buttonSize),
+        )
       }
     }
 
