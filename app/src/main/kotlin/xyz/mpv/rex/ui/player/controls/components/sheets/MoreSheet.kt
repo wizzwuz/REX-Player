@@ -154,86 +154,11 @@ fun MoreSheet(
     onDismissRequest,
     modifier,
   ) {
-    val activity = LocalContext.current as PlayerActivity
-    val isLocalMedia = remember(viewModel) { activity.isCurrentVideoLocal() }
-
     Column(
       modifier = Modifier
         .fillMaxWidth()
         .animateContentSize(animationSpec = tween(durationMillis = 300))
     ) {
-      // Header with Title and Quick Actions (Media Info, Delete)
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = stringResource(R.string.player_sheets_more_title),
-          style = MaterialTheme.typography.titleLarge,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Row(
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          // Media Info
-          FilledTonalButton(
-            onClick = {
-              onDismissRequest()
-              activity.openMediaInfo()
-            },
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            modifier = Modifier.height(36.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Default.Info,
-              contentDescription = null,
-              modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = stringResource(R.string.media_info_title),
-              style = MaterialTheme.typography.labelLarge
-            )
-          }
-
-          // Delete
-          Button(
-            onClick = {
-              onDismissRequest()
-              viewModel.requestDeleteCurrentVideo()
-            },
-            enabled = isLocalMedia,
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.errorContainer,
-              contentColor = MaterialTheme.colorScheme.onErrorContainer,
-              disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-              disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-            ),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            modifier = Modifier.height(36.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Default.Delete,
-              contentDescription = null,
-              modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-              text = stringResource(R.string.delete),
-              style = MaterialTheme.typography.labelLarge
-            )
-          }
-        }
-      }
-
       PrimaryScrollableTabRow(
         selectedTabIndex = pagerState.currentPage,
         containerColor = Color.Transparent,
@@ -395,6 +320,43 @@ fun SettingsTab(
 
       Spacer(modifier = Modifier.height(MaterialTheme.spacing.extraSmall))
 
+      Text(
+        text = stringResource(R.string.player_sheets_stats_page_title),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary
+      )
+      LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+      ) {
+        items(6) { page ->
+          FilterChip(
+            label = {
+              Text(
+                stringResource(
+                  if (page ==
+                    0
+                  ) {
+                    R.string.player_sheets_tracks_off
+                  } else {
+                    R.string.player_sheets_stats_page_chip
+                  },
+                  page,
+                ),
+              )
+            },
+            onClick = {
+              if ((page == 0) xor (statisticsPage == 0)) MPVLib.command("script-binding", "stats/display-stats-toggle")
+              if (page != 0) MPVLib.command("script-binding", "stats/display-page-$page")
+              advancedPreferences.enabledStatisticsPage.set(page)
+            },
+            selected = statisticsPage == page,
+            leadingIcon = null,
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(MaterialTheme.spacing.extraSmall))
+
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller)
@@ -462,43 +424,6 @@ fun SettingsTab(
               maxLines = 1
             )
           }
-        }
-      }
-
-      Spacer(modifier = Modifier.height(MaterialTheme.spacing.extraSmall))
-
-      Text(
-        text = stringResource(R.string.player_sheets_stats_page_title),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary
-      )
-      LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
-      ) {
-        items(6) { page ->
-          FilterChip(
-            label = {
-              Text(
-                stringResource(
-                  if (page ==
-                    0
-                  ) {
-                    R.string.player_sheets_tracks_off
-                  } else {
-                    R.string.player_sheets_stats_page_chip
-                  },
-                  page,
-                ),
-              )
-            },
-            onClick = {
-              if ((page == 0) xor (statisticsPage == 0)) MPVLib.command("script-binding", "stats/display-stats-toggle")
-              if (page != 0) MPVLib.command("script-binding", "stats/display-page-$page")
-              advancedPreferences.enabledStatisticsPage.set(page)
-            },
-            selected = statisticsPage == page,
-            leadingIcon = null,
-          )
         }
       }
 
