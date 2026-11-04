@@ -2215,13 +2215,14 @@ fun PlayerControls(
     }
 
     if (viewModel.showDeleteConfirmation.value) {
+      val activity = LocalActivity.current as? PlayerActivity
       DeleteConfirmationDialog(
         isOpen = true,
         onDismiss = { viewModel.dismissDeleteConfirmation() },
         onConfirm = {
           viewModel.dismissDeleteConfirmation()
           onOpenSheet(Sheets.None)
-          activity.deleteCurrentlyPlayingVideo()
+          activity?.deleteCurrentlyPlayingVideo()
         },
         itemTypePluralRes = R.plurals.item_type_video_plural,
         itemCount = 1,

@@ -66,6 +66,7 @@ import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -728,7 +729,6 @@ fun ControlsTab(
   val currentZoom by viewModel.videoZoom.collectAsState()
   val aspect by viewModel.videoAspect.collectAsState()
 
-  val activity = LocalContext.current as PlayerActivity
   val mpvDecoder by MPVLib.propString["hwdec-current"].collectAsState("")
   val decoder by remember { derivedStateOf { xyz.mpv.rex.ui.player.Decoder.getDecoderFromValue(mpvDecoder ?: "auto") } }
 
