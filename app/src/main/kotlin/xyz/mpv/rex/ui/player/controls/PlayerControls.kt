@@ -1,5 +1,6 @@
 package xyz.mpv.rex.ui.player.controls
 
+import xyz.mpv.rex.utils.storage.FileTypeUtils
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -445,15 +446,27 @@ fun PlayerControls(
         val mediaTitle by remember(rawMediaTitle, activity) {
           derivedStateOf {
             val title = activity.getTitleForControls()
-            if (title.startsWith("http://") || title.startsWith("https://") || title.contains(".m3u8") || title.contains(".m3u")) {
-              val raw = rawMediaTitle
-              if (raw != null && raw.isNotBlank() && !raw.startsWith("http://") && !raw.startsWith("https://") && !raw.contains(".m3u8") && !raw.contains(".m3u")) {
-                raw
+            val resolvedTitle =
+              if (title.startsWith("http://") || title.startsWith("https://") ||
+                  title.contains(".m3u8") || title.contains(".m3u")) {
+                val raw = rawMediaTitle
+                if (raw != null && raw.isNotBlank() &&
+                    !raw.startsWith("http://") && !raw.startsWith("https://") &&
+                    !raw.contains(".m3u8") && !raw.contains(".m3u")) {
+                  raw
+                } else {
+                  title
+                }
               } else {
                 title
               }
+
+            val extension = resolvedTitle.substringAfterLast('.', "").lowercase()
+            if (extension in FileTypeUtils.VIDEO_EXTENSIONS ||
+                extension in FileTypeUtils.AUDIO_EXTENSIONS) {
+              resolvedTitle.substringBeforeLast('.')
             } else {
-              title
+              resolvedTitle
             }
           }
         }
@@ -1616,8 +1629,18 @@ fun PlayerControls(
           visible = controlsShown && !areControlsLocked,
           enter =
             if (!reduceMotion) {
-              slideInHorizontally(playerControlsEnterAnimationSpec()) { it } +
-                fadeIn(playerControlsEnterAnimationSpec())
+              slideInHorizontally(
+                animationSpec = tween(
+                  durationMillis = 180,
+                  easing = LinearOutSlowInEasing,
+                ),
+              ) { it / 3 } +
+                fadeIn(
+                  tween(
+                    durationMillis = 180,
+                    easing = LinearOutSlowInEasing,
+                  ),
+                )
             } else {
               fadeIn(playerControlsEnterAnimationSpec())
             },
