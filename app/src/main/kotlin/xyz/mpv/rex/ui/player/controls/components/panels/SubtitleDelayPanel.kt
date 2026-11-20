@@ -90,7 +90,12 @@ fun SubtitleDelayPanel(
   val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
   if (isPortrait) {
-    PlayerSheet(onDismissRequest = onDismissRequest) {
+    PlayerSheet(
+      onDismissRequest = onDismissRequest,
+      dismissOnBackdropClick = false,
+      enableSwipeToDismiss = false,
+      showDragHandle = false,
+    ) {
       Column(
         modifier = modifier
           .fillMaxWidth()
@@ -111,7 +116,7 @@ fun SubtitleDelayPanel(
             fontWeight = FontWeight.Bold,
           )
           IconButton(onClick = onDismissRequest) {
-            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(24.dp))
+            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(24.dp))
           }
         }
 
@@ -166,7 +171,7 @@ private fun SubtitleDelaySideSheet(
       .clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
-        onClick = { dismissWithAnimation() },
+        onClick = {}, // Persistent: do not dismiss on click outside
       ),
     contentAlignment = Alignment.CenterEnd,
   ) {
@@ -212,7 +217,7 @@ private fun SubtitleDelaySideSheet(
               fontWeight = FontWeight.Bold,
             )
             IconButton(onClick = { dismissWithAnimation() }) {
-              Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(24.dp))
+              Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(24.dp))
             }
           }
 

@@ -76,6 +76,10 @@ fun PlayerSheet(
   customMaxWidth: Dp? = null,
   customMaxHeight: Dp? = null,
   surfaceColor: Color? = null,
+  dismissOnBackdropClick: Boolean = true,
+  showDimOverlay: Boolean = true,
+  enableSwipeToDismiss: Boolean = true,
+  showDragHandle: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
@@ -127,9 +131,15 @@ fun PlayerSheet(
         .clickable(
           interactionSource = remember { MutableInteractionSource() },
           indication = null,
-          onClick = internalOnDismissRequest,
+          onClick = {
+            if (dismissOnBackdropClick) {
+              internalOnDismissRequest()
+            }
+          },
         ).fillMaxSize()
-        .background(Color.Black.copy(alpha))
+        .background(
+          if (showDimOverlay) Color.Black.copy(alpha) else Color.Transparent
+        )
         .onSizeChanged {
           val anchors =
             DraggableAnchors {
@@ -148,10 +158,16 @@ fun PlayerSheet(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
             onClick = {},
-          ).nestedScroll(
-            remember(anchoredDraggableState) {
-              anchoredDraggableState.preUpPostDownNestedScrollConnection()
-            },
+          ).then(
+            if (enableSwipeToDismiss) {
+              Modifier.nestedScroll(
+                remember(anchoredDraggableState) {
+                  anchoredDraggableState.preUpPostDownNestedScrollConnection()
+                },
+              )
+            } else {
+              Modifier
+            }
           ).then(modifier)
           .offset {
             IntOffset(
@@ -164,6 +180,7 @@ fun PlayerSheet(
           }.anchoredDraggable(
             state = anchoredDraggableState,
             orientation = Orientation.Vertical,
+            enabled = enableSwipeToDismiss,
           ).windowInsetsPadding(
             WindowInsets.systemBars
               .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
@@ -180,22 +197,26 @@ fun PlayerSheet(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        shape = xyz.mpv.rex.ui.theme.pillShape
-                    )
-            )
+            if (showDragHandle) {
+              Box(
+                  modifier = Modifier
+                      .padding(vertical = 12.dp)
+                      .size(width = 36.dp, height = 4.dp)
+                      .background(
+                          color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                          shape = xyz.mpv.rex.ui.theme.pillShape
+                      )
+              )
+            }
             content()
         }
       },
     )
 
     LaunchedEffect(true) {
-      backgroundAlpha = 0.5f
+      if (showDimOverlay) {
+        backgroundAlpha = 0.5f
+      }
     }
 
     LaunchedEffect(anchoredDraggableState) {
