@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,9 +31,9 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
@@ -42,6 +44,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -64,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -84,6 +91,7 @@ import xyz.mpv.rex.ui.browser.cards.FolderCard
 import xyz.mpv.rex.ui.browser.cards.PlaylistCard
 import xyz.mpv.rex.ui.browser.cards.VideoCard
 import xyz.mpv.rex.ui.browser.components.BrowserTopBar
+import xyz.mpv.rex.ui.browser.components.ContentSurfaceContainer
 import xyz.mpv.rex.ui.browser.components.UnifiedExplorerContent
 import xyz.mpv.rex.ui.browser.playlist.PlaylistDetailScreen
 import xyz.mpv.rex.ui.browser.selection.rememberSelectionManager
@@ -120,6 +128,12 @@ object RecentlyPlayedScreen : Screen {
 
     val isFabVisible = remember { mutableStateOf(true) }
     val isFabExpanded = remember { mutableStateOf(false) }
+    val isMiniPlayerActive = xyz.mpv.rex.ui.browser.LocalMiniPlayerActive.current
+    LaunchedEffect(isMiniPlayerActive) {
+      if (isMiniPlayerActive) {
+        isFabExpanded.value = false
+      }
+    }
     val isRefreshing = remember { mutableStateOf(false) }
     
     val coroutineScope = rememberCoroutineScope()
@@ -158,8 +172,6 @@ object RecentlyPlayedScreen : Screen {
     val browserPreferences = koinInject<BrowserPreferences>()
     val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
     val appearancePreferences = koinInject<xyz.mpv.rex.preferences.AppearancePreferences>()
-    val miniPlayerStateManager = koinInject<xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerStateManager>()
-    val miniPlayerState by miniPlayerStateManager.state.collectAsState()
     val hidePlayFabShowInHeader by appearancePreferences.hidePlayFabShowInHeader.collectAsState()
     xyz.mpv.rex.ui.browser.fab.FabScrollHelper.trackScrollForFabVisibility(
       listState = listState,
@@ -183,10 +195,24 @@ object RecentlyPlayedScreen : Screen {
       }
     }
 
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+      // Nested/pushed screens must set the screen tone themselves; it does not
+      // propagate from MainScreen across a NavDisplay boundary, and a nested
+      // Scaffold overrides it. surfaceContainer is what shows through the
+      // content surface's gaps and around its 24.dp corners.
+      containerColor = if (MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color.Black) {
+        androidx.compose.ui.graphics.Color.Black
+      } else {
+        MaterialTheme.colorScheme.surfaceContainer
+      },
         topBar = {
           BrowserTopBar(
             title = stringResource(R.string.recently_played),
+            scrollBehavior = scrollBehavior,
             isInSelectionMode = selectionManager.isInSelectionMode,
             selectedCount = selectionManager.selectedCount,
             totalCount = recentItems.size,
@@ -228,10 +254,8 @@ object RecentlyPlayedScreen : Screen {
         },
       floatingActionButton = {
         val navigationBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
-        val miniPlayerStateManager = koinInject<xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerStateManager>()
-        val miniPlayerState by miniPlayerStateManager.state.collectAsState()
 
-        if (!hidePlayFabShowInHeader && recentItems.isNotEmpty()) {
+        if (!hidePlayFabShowInHeader && recentItems.isNotEmpty() && !isMiniPlayerActive) {
           TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
             tooltip = { PlainTooltip { Text(stringResource(R.string.play_recently_played_or_first)) } },
@@ -239,7 +263,7 @@ object RecentlyPlayedScreen : Screen {
           ) {
             FloatingActionButtonMenu(
               modifier = Modifier.padding(
-                bottom = navigationBarHeight + 8.dp
+                bottom = (navigationBarHeight - 4.dp).coerceAtLeast(0.dp)
               ),
               expanded = isFabExpanded.value,
               button = {
@@ -343,7 +367,7 @@ object RecentlyPlayedScreen : Screen {
               .padding(padding),
             contentAlignment = Alignment.Center,
           ) {
-            CircularProgressIndicator(
+            LoadingIndicator(
               modifier = Modifier.size(48.dp),
               color = MaterialTheme.colorScheme.primary,
             )
@@ -381,11 +405,22 @@ object RecentlyPlayedScreen : Screen {
               // Navigate to playlist detail screen
               backStack.add(PlaylistDetailScreen(playlistItem.playlist.id))
             },
-            modifier = Modifier.padding(padding),
+            // The Scaffold padding repeats the navigation-bar inset that the
+            // content surface already adds (plus its own 14.dp gap), so keep the
+            // top inset only and let the container own the bottom.
+            modifier = Modifier.padding(
+              PaddingValues(
+                start = padding.calculateStartPadding(LocalLayoutDirection.current),
+                top = padding.calculateTopPadding(),
+                end = padding.calculateEndPadding(LocalLayoutDirection.current),
+                bottom = 0.dp,
+              )
+            ),
             isInSelectionMode = selectionManager.isInSelectionMode,
             listState = listState,
             gridState = gridState,
             isRefreshing = isRefreshing,
+            headerScrollState = topAppBarState,
             onRefresh = { viewModel.refresh() }
           )
         }
@@ -462,33 +497,41 @@ private fun RecentItemsContent(
   gridState: LazyGridState,
   isRefreshing: androidx.compose.runtime.MutableState<Boolean>,
   onRefresh: suspend () -> Unit,
+  headerScrollState: TopAppBarState? = null,
 ) {
   val coroutineScope = rememberCoroutineScope()
 
-  UnifiedExplorerContent(
-    items = recentItems,
-    isLoading = false,
-    uiSettings = uiSettings,
-    isSelected = { selectionManager.isSelected(it) },
-    onClick = { item ->
-      when (item) {
-        is RecentlyPlayedItem.VideoItem -> onVideoClick(item.video)
-        is RecentlyPlayedItem.PlaylistItem -> {
-          coroutineScope.launch {
-            onPlaylistClick(item)
+  ContentSurfaceContainer(
+    navigationBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current,
+    modifier = modifier,
+  ) {
+    UnifiedExplorerContent(
+      items = recentItems,
+      isLoading = false,
+      uiSettings = uiSettings,
+      isSelected = { selectionManager.isSelected(it) },
+      onClick = { item ->
+        when (item) {
+          is RecentlyPlayedItem.VideoItem -> onVideoClick(item.video)
+          is RecentlyPlayedItem.PlaylistItem -> {
+            coroutineScope.launch {
+              onPlaylistClick(item)
+            }
           }
         }
-      }
-    },
-    onLongClick = { item -> selectionManager.handleLongClick(item) },
-    onToggleSelection = { selectionManager.toggle(it) },
-    emptyTitle = stringResource(R.string.no_recently_played_items),
-    emptyMessage = stringResource(R.string.no_recently_played_items_message),
-    isRefreshing = isRefreshing,
-    onRefresh = onRefresh,
-    modifier = modifier,
-    isInSelectionMode = isInSelectionMode,
-    listState = listState,
-    gridState = gridState,
-  )
+      },
+      onLongClick = { item -> selectionManager.handleLongClick(item) },
+      onToggleSelection = { selectionManager.toggle(it) },
+      emptyTitle = stringResource(R.string.no_recently_played_items),
+      emptyMessage = stringResource(R.string.no_recently_played_items_message),
+      isRefreshing = isRefreshing,
+      onRefresh = onRefresh,
+      headerScrollState = headerScrollState,
+      isInSelectionMode = isInSelectionMode,
+      listState = listState,
+      gridState = gridState,
+      useContentSurface = true,
+      // Playlist rows expand into PlaylistDetailScreen; video rows play in place.
+    )
+  }
 }

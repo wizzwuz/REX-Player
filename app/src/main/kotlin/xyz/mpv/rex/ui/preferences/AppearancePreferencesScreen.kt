@@ -27,30 +27,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import xyz.mpv.rex.R
 import xyz.mpv.rex.preferences.AppearancePreferences
 import xyz.mpv.rex.preferences.BrowserPreferences
-import xyz.mpv.rex.preferences.MultiChoiceSegmentedButton
+import xyz.mpv.rex.ui.preferences.components.ExpressiveSegmentedButton
+import xyz.mpv.rex.ui.preferences.components.ExpressiveSegmentedButtonCompact
 import xyz.mpv.rex.ui.preferences.components.ThemePicker
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.theme.DarkMode
 import xyz.mpv.rex.ui.utils.LocalBackStack
 import xyz.mpv.rex.ui.utils.navigateBack
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.Serializable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +60,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.semantics.Role
 import xyz.mpv.rex.utils.locale.LocaleHelper
+import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.Preference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
@@ -65,9 +68,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object AppearancePreferencesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
@@ -89,41 +97,21 @@ object AppearancePreferencesScreen : Screen {
         val context = LocalContext.current
         var showLanguageDialog by remember { mutableStateOf(false) }
 
-        Scaffold(
-            containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            topBar = {
-                TopAppBar(
-                    colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    ),
-                    title = {
-                        Text(
-                            text = stringResource(R.string.pref_appearance_title),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = backstack::navigateBack) {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                            )
-                        }
-                    },
-                )
-            },
-        ) { padding ->
+        val pageColor = MaterialTheme.colorScheme.surfaceContainer
+        val cardColor = MaterialTheme.colorScheme.surface
+
+        CollapsibleHeaderScreen(
+          containerColor = pageColor,
+            title = stringResource(R.string.pref_appearance_title),
+            showBackButton = true,
+            onBackClick = backstack::navigateBack,
+        ) { contentModifier ->
             val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
+            val listState = rememberPreferenceLazyListState()
             ProvidePreferenceLocals {
                 LazyColumn(
-                    state = rememberPreferenceLazyListState(),
-                    modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    state = listState,
+                    modifier = contentModifier,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = navBarHeight + 16.dp),
                 ) {
                     item {
@@ -134,6 +122,7 @@ object AppearancePreferencesScreen : Screen {
                         val currentLanguage = remember { LocaleHelper.getCurrentLanguage(context) }
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.ONLY,
                                 highlightKey = R.string.pref_appearance_language_title,
                             ) {
@@ -173,6 +162,7 @@ object AppearancePreferencesScreen : Screen {
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = listOf(
                                     R.string.pref_appearance_title,
@@ -180,10 +170,13 @@ object AppearancePreferencesScreen : Screen {
                                 ),
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                    MultiChoiceSegmentedButton(
-                                        choices = DarkMode.entries.map { stringResource(it.titleRes) }.toImmutableList(),
-                                        selectedIndices = persistentListOf(DarkMode.entries.indexOf(darkMode)),
-                                        onClick = { preferences.darkMode.set(DarkMode.entries[it]) },
+                                    ExpressiveSegmentedButton(
+                                        options = DarkMode.entries.map { stringResource(it.titleRes) },
+                                        selectedIndex = DarkMode.entries.indexOf(darkMode),
+                                        onSelect = { preferences.darkMode.set(DarkMode.entries[it]) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp),
                                     )
                                     ThemePicker(
                                         currentTheme = appTheme,
@@ -203,10 +196,29 @@ object AppearancePreferencesScreen : Screen {
                                         },
                                         enabled = darkMode != DarkMode.Light,
                                     )
+                                    val settingsBadgeShape by preferences.settingsBadgeShape.collectAsState()
+                                    val badgeChoices = listOf("Squircle", "Circle")
+                                    val selectedBadgeIndex = if (settingsBadgeShape == "CIRCLE") 1 else 0
+                                    Spacer(modifier = Modifier.padding(top = 8.dp))
+                                    Text(
+                                        text = stringResource(R.string.pref_appearance_settings_badge_shape_title),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
+                                    )
+                                    ExpressiveSegmentedButtonCompact(
+                                        options = badgeChoices,
+                                        selectedIndex = selectedBadgeIndex,
+                                        onSelect = { idx ->
+                                            preferences.settingsBadgeShape.set(if (idx == 1) "CIRCLE" else "SQUIRCLE")
+                                        },
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                    )
                                 }
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.MIDDLE,
                                 highlightKey = R.string.pref_appearance_use_system_font_title,
                             ) {
@@ -224,6 +236,7 @@ object AppearancePreferencesScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = R.string.pref_appearance_hide_play_fab_show_in_header_title,
                             ) {
@@ -232,6 +245,42 @@ object AppearancePreferencesScreen : Screen {
                                     onValueChange = { preferences.hidePlayFabShowInHeader.set(it) },
                                     title = { Text(text = stringResource(id = R.string.pref_appearance_hide_play_fab_show_in_header_title)) },
                                     summary = { Text(text = stringResource(id = R.string.pref_appearance_hide_play_fab_show_in_header_summary)) },
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        PreferenceSectionHeader(title = stringResource(id = R.string.pref_appearance_category_motion))
+                    }
+
+                    item {
+                        val motionPreset by preferences.navigationMotionStyle.collectAsState()
+                        GroupedListColumn {
+                            GroupedPreferenceCard(
+                                color = cardColor, tonalElevation = 0.dp,
+                                position = GroupPosition.ONLY,
+                                highlightKey = R.string.pref_appearance_motion_preset_title,
+                            ) {
+                                ListPreference(
+                                    value = motionPreset,
+                                    onValueChange = preferences.navigationMotionStyle::set,
+                                    values = MotionStyle.selectablePresets,
+                                    valueToText = { AnnotatedString(context.getString(it.titleRes)) },
+                                    title = { Text(text = stringResource(id = R.string.pref_appearance_motion_preset_title)) },
+                                    summary = {
+                                        Text(
+                                            text = stringResource(id = motionPreset.titleRes),
+                                            color = MaterialTheme.colorScheme.outline,
+                                        )
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.SwapVert,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -357,13 +406,14 @@ object AppearancePreferencesScreen : Screen {
                                 }
 
                                 val elevation by androidx.compose.animation.core.animateDpAsState(
-                                    targetValue = if (isDragging) 8.dp else 1.dp,
+                                    targetValue = if (isDragging) 8.dp else 0.dp,
                                     label = "elevation"
                                 )
 
                                 GroupedPreferenceCard(
                                     position = position,
                                     highlightKey = item.titleRes,
+                                    color = cardColor,
                                     tonalElevation = elevation,
                                 ) {
                                     SwitchPreference(

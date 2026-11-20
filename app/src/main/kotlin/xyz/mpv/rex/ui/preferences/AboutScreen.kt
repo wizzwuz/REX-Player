@@ -56,6 +56,7 @@ import androidx.core.net.toUri
 import xyz.mpv.rex.BuildConfig
 import xyz.mpv.rex.R
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.presentation.crash.CrashActivity.Companion.collectDeviceInfo
@@ -77,9 +78,14 @@ import xyz.mpv.rex.utils.update.UpdateViewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object AboutScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @Suppress("DEPRECATION")
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
@@ -110,29 +116,15 @@ object AboutScreen : Screen {
         }
     }
 
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { 
-            Text(
-              text = stringResource(id = R.string.pref_about_title),
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.primary,
-            ) 
-          },
-          navigationIcon = {
-            IconButton(onClick = backstack::navigateBack) {
-              Icon(
-                imageVector = Icons.AutoMirrored.Default.ArrowBack, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
-            }
-          },
-        )
-      },
-    ) { paddingValues ->
+    val pageColor = MaterialTheme.colorScheme.surfaceContainer
+    val cardColor = MaterialTheme.colorScheme.surface
+
+    CollapsibleHeaderScreen(
+      containerColor = pageColor,
+      title = stringResource(id = R.string.pref_about_title),
+      showBackButton = true,
+      onBackClick = backstack::navigateBack,
+    ) { contentModifier ->
       val cs = MaterialTheme.colorScheme
       val colorPrimary = cs.primaryContainer
       val colorSecondary = cs.secondaryContainer
@@ -150,14 +142,14 @@ object AboutScreen : Screen {
       val cornerRadius = 28.dp
 
       ProvidePreferenceLocals {
+        val scrollState = rememberScrollState()
         Column(
           modifier =
-            Modifier
-              .padding(paddingValues)
-              .verticalScroll(rememberScrollState()),
+            contentModifier
+              .verticalScroll(scrollState),
         ) {
           GroupedListColumn {
-            GroupedPreferenceCard(position = GroupPosition.ONLY) {
+            GroupedPreferenceCard(position = GroupPosition.ONLY, color = cardColor, tonalElevation = 0.dp) {
               Box(
                 modifier =
                   Modifier
@@ -315,7 +307,7 @@ object AboutScreen : Screen {
 
           PreferenceSectionHeader(title = stringResource(id = R.string.pref_about_telegram_title))
           GroupedListColumn {
-            GroupedPreferenceCard(position = GroupPosition.FIRST) {
+            GroupedPreferenceCard(position = GroupPosition.FIRST, color = cardColor, tonalElevation = 0.dp) {
               Preference(
                 title = { Text(text = stringResource(id = R.string.pref_about_telegram_channel)) },
                 summary = {
@@ -342,7 +334,7 @@ object AboutScreen : Screen {
               )
             }
 
-            GroupedPreferenceCard(position = GroupPosition.LAST) {
+            GroupedPreferenceCard(position = GroupPosition.LAST, color = cardColor, tonalElevation = 0.dp) {
               Preference(
                 title = { Text(text = stringResource(id = R.string.pref_about_telegram_group)) },
                 summary = {
@@ -376,7 +368,7 @@ object AboutScreen : Screen {
           if (BuildConfig.ENABLE_UPDATE_FEATURE) {
             PreferenceSectionHeader(title = stringResource(R.string.pref_category_updates))
             GroupedListColumn {
-              GroupedPreferenceCard(position = GroupPosition.FIRST) {
+              GroupedPreferenceCard(position = GroupPosition.FIRST, color = cardColor, tonalElevation = 0.dp) {
                 SwitchPreference(
                   value = isAutoUpdateEnabled,
                   onValueChange = { updateViewModel?.toggleAutoUpdate(it) },
@@ -397,7 +389,7 @@ object AboutScreen : Screen {
                 )
               }
               
-              GroupedPreferenceCard(position = GroupPosition.LAST) {
+              GroupedPreferenceCard(position = GroupPosition.LAST, color = cardColor, tonalElevation = 0.dp) {
                 Preference(
                   title = { Text(stringResource(R.string.pref_about_check_updates)) },
                   summary = {
@@ -434,33 +426,20 @@ object AboutScreen : Screen {
 @Suppress("DEPRECATION")
 @Serializable
 object LibrariesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
     val backstack = LocalBackStack.current
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { 
-            Text(
-              text = stringResource(id = R.string.pref_about_oss_libraries),
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.primary,
-            ) 
-          },
-          navigationIcon = {
-            IconButton(onClick = backstack::navigateBack) {
-              Icon(
-                imageVector = Icons.AutoMirrored.Default.ArrowBack, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-              )
-            }
-          },
-        )
-      },
-    ) { paddingValues ->
+    CollapsibleHeaderScreen(
+      title = stringResource(id = R.string.pref_about_oss_libraries),
+      showBackButton = true,
+      onBackClick = backstack::navigateBack,
+    ) { contentModifier ->
+      Box(modifier = contentModifier)
     }
   }
 }

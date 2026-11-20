@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,8 +28,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.AccountTree
@@ -60,6 +59,10 @@ import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
@@ -118,9 +121,11 @@ import xyz.mpv.rex.repository.MediaFileRepository
 import xyz.mpv.rex.presentation.Screen
 import xyz.mpv.rex.presentation.components.pullrefresh.PullRefreshBox
 import xyz.mpv.rex.ui.browser.LocalNavigationBarHeight
+import xyz.mpv.rex.ui.browser.LocalMiniPlayerActive
 import xyz.mpv.rex.ui.browser.cards.FolderCard
 import xyz.mpv.rex.ui.browser.cards.VideoCard
 import xyz.mpv.rex.ui.browser.components.BrowserTopBar
+import xyz.mpv.rex.ui.browser.components.ContentSurfaceContainer
 import xyz.mpv.rex.ui.browser.components.UnifiedExplorerContent
 import xyz.mpv.rex.ui.browser.components.SelectionOverflowAction
 import xyz.mpv.rex.ui.browser.dialogs.DeleteConfirmationDialog
@@ -154,6 +159,7 @@ import kotlinx.serialization.Serializable
 
 import org.koin.compose.koinInject
 import java.io.File
+import xyz.mpv.rex.ui.motion.RexMotion
 
 @Serializable
 object FolderListScreen : Screen {
@@ -341,6 +347,12 @@ object FolderListScreen : Screen {
     // FAB state
     val isFabVisible = remember { mutableStateOf(true) }
     val isFabExpanded = remember { mutableStateOf(false) }
+    val isMiniPlayerActive = LocalMiniPlayerActive.current
+    LaunchedEffect(isMiniPlayerActive) {
+      if (isMiniPlayerActive) {
+        isFabExpanded.value = false
+      }
+    }
 
     // File picker
     val filePicker = rememberLauncherForActivityResult(
@@ -449,10 +461,24 @@ object FolderListScreen : Screen {
       onExpandedChange = { isFabExpanded.value = it },
     )
 
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+
     Scaffold(
+      modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+      // The content below reads `LocalNavigationBarHeight`, which already carries the device
+      // navigation bar inset. Leaving Scaffold's default insets on would apply that inset twice
+      // and lift the content sheet off the bottom bar, hiding its rounded bottom corners.
+      contentWindowInsets = WindowInsets(0, 0, 0, 0),
+      containerColor = if (MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color.Black) {
+        androidx.compose.ui.graphics.Color.Black
+      } else {
+        MaterialTheme.colorScheme.surfaceContainer
+      },
       topBar = {
         BrowserTopBar(
           title = stringResource(xyz.mpv.rex.R.string.app_name),
+          scrollBehavior = scrollBehavior,
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
           totalCount = videoFolders.size,
@@ -580,9 +606,9 @@ object FolderListScreen : Screen {
           )
         },
       floatingActionButton = {
-        if (!hidePlayFabShowInHeader) {
+        if (!hidePlayFabShowInHeader && !isMiniPlayerActive) {
         FloatingActionButtonMenu(
-          modifier = Modifier.padding(bottom = navigationBarHeight + 8.dp),
+          modifier = Modifier.padding(bottom = (navigationBarHeight - 4.dp).coerceAtLeast(0.dp)),
           expanded = isFabExpanded.value,
           button = {
             TooltipBox(
@@ -723,6 +749,7 @@ object FolderListScreen : Screen {
               },
               scrollTriggerKey = "${folderSortType.name}:${folderSortOrder.name}",
               pinnedPaths = pinnedPaths,
+              headerScrollState = topAppBarState,
             )
           }
 
@@ -758,14 +785,8 @@ object FolderListScreen : Screen {
       Box(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
           visible = selectionManager.isInSelectionMode,
-          enter = slideInVertically(
-            animationSpec = tween(durationMillis = 200),
-            initialOffsetY = { fullHeight -> fullHeight },
-          ),
-          exit = slideOutVertically(
-            animationSpec = tween(durationMillis = 200),
-            targetOffsetY = { fullHeight -> fullHeight },
-          ),
+          enter = RexMotion.dockEnter(LocalContext.current),
+          exit = RexMotion.dockExit(LocalContext.current),
           modifier = Modifier.align(Alignment.BottomCenter),
         ) {
           BrowserBottomBar(
@@ -953,13 +974,15 @@ private fun FolderListContent(
   onFolderLongClick: (VideoFolder) -> Unit,
   scrollTriggerKey: Any? = null,
   pinnedPaths: List<String> = emptyList(),
+  headerScrollState: TopAppBarState? = null,
 ) {
   val showLoading = isLoading && !hasCompletedInitialLoad
 
-  Box(modifier = Modifier.fillMaxSize()) {
+  ContentSurfaceContainer(navigationBarHeight = navigationBarHeight) {
     UnifiedExplorerContent(
       items = folders,
-      isLoading = showLoading,
+      isLoading = isLoading,
+      hasLoaded = hasCompletedInitialLoad,
       uiSettings = uiSettings,
       isSelected = { selectionManager.isSelected(it) },
       onClick = { onFolderClick(it) },
@@ -969,6 +992,7 @@ private fun FolderListContent(
       emptyMessage = stringResource(R.string.no_video_folders_found_desc),
       isRefreshing = isRefreshing,
       onRefresh = onRefresh,
+      headerScrollState = headerScrollState,
       isInSelectionMode = selectionManager.isInSelectionMode,
       recentlyPlayedFilePath = recentlyPlayedFilePath,
       recentlyPlayedFilePaths = recentlyPlayedFilePaths,
@@ -980,6 +1004,7 @@ private fun FolderListContent(
       scrollTriggerKey = scrollTriggerKey,
       gridColumns = folderGridColumns,
       pinnedPaths = pinnedPaths,
+      useContentSurface = true,
     )
   }
 }

@@ -81,14 +81,20 @@ import xyz.mpv.rex.domain.ytdl.model.YtdlpStatus
 import xyz.mpv.rex.preferences.YtdlPreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import xyz.mpv.rex.ui.utils.LocalBackStack
 import xyz.mpv.rex.ui.utils.navigateBack
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object YtdlSettingsScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
     private const val ADDON_GITHUB_RELEASES_URL = "https://github.com/mpvRex/REX-Ytdlp/releases"
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -133,46 +139,30 @@ object YtdlSettingsScreen : Screen {
             refreshStatus()
         }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "yt-dlp",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = backstack::navigateBack) {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { refreshStatus() }) {
-                            Icon(
-                                Icons.Outlined.Refresh,
-                                contentDescription = "Refresh",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                )
-            }
-        ) { padding ->
+        val pageColor = MaterialTheme.colorScheme.surfaceContainer
+        val cardColor = MaterialTheme.colorScheme.surface
+
+        CollapsibleHeaderScreen(
+          containerColor = pageColor,
+            title = "yt-dlp",
+            showBackButton = true,
+            onBackClick = backstack::navigateBack,
+            actions = {
+                IconButton(onClick = { refreshStatus() }) {
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            },
+        ) { contentModifier ->
             val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
             val lazyListState = rememberPreferenceLazyListState()
             ProvidePreferenceLocals {
                 LazyColumn(
                     state = lazyListState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    modifier = contentModifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         top = 8.dp,
                         bottom = navBarHeight + 24.dp,
@@ -240,6 +230,7 @@ object YtdlSettingsScreen : Screen {
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.ONLY,
                                 highlightKey = "Prefer Nightly Channel",
                             ) {
@@ -264,6 +255,7 @@ object YtdlSettingsScreen : Screen {
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = "Resolution Preference",
                             ) {
@@ -301,6 +293,7 @@ object YtdlSettingsScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = "Geo-Bypass",
                             ) {
@@ -325,6 +318,7 @@ object YtdlSettingsScreen : Screen {
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = "Auto-detect Web Pages",
                             ) {
@@ -342,6 +336,7 @@ object YtdlSettingsScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = "Custom Supported Domains",
                             ) {
@@ -382,6 +377,7 @@ object YtdlSettingsScreen : Screen {
 
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = "Custom Format Selector",
                             ) {
@@ -409,6 +405,7 @@ object YtdlSettingsScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.MIDDLE,
                                 highlightKey = "Proxy",
                             ) {
@@ -436,6 +433,7 @@ object YtdlSettingsScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = "Custom User-Agent",
                             ) {
@@ -474,7 +472,7 @@ object YtdlSettingsScreen : Screen {
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(20.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    containerColor = MaterialTheme.colorScheme.surface,
                                 ),
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
@@ -702,7 +700,7 @@ object YtdlSettingsScreen : Screen {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                containerColor = MaterialTheme.colorScheme.surface,
             ),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {

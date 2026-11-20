@@ -51,6 +51,7 @@ import xyz.mpv.rex.preferences.allPlayerButtons
 import xyz.mpv.rex.preferences.preference.Preference
 import xyz.mpv.rex.preferences.preference.deleteAndGet
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.ConfirmDialog
 import xyz.mpv.rex.ui.preferences.components.PlayerButtonChip
 import xyz.mpv.rex.ui.utils.LocalBackStack
@@ -60,11 +61,16 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 data class ControlLayoutEditorScreen(
   val region: ControlRegion,
 ) : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
   @Composable
   override fun Content() {
@@ -173,23 +179,16 @@ data class ControlLayoutEditorScreen(
       )
     }
 
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { Text(text = title) },
-          navigationIcon = {
-            IconButton(onClick = backstack::navigateBack) {
-              Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.control_layout_back))
-            }
-          },
-          actions = {
-            IconButton(onClick = { showResetDialog = true }) {
-              Icon(Icons.Outlined.Restore, contentDescription = stringResource(R.string.control_layout_reset_to_default))
-            }
-          },
-        )
+    CollapsibleHeaderScreen(
+      title = title,
+      showBackButton = true,
+      onBackClick = backstack::navigateBack,
+      actions = {
+        IconButton(onClick = { showResetDialog = true }) {
+          Icon(Icons.Outlined.Restore, contentDescription = stringResource(R.string.control_layout_reset_to_default))
+        }
       },
-    ) { padding ->
+    ) { contentModifier ->
       ProvidePreferenceLocals {
         val gridState = rememberLazyGridState()
         val availableButtons = remember(region) {
@@ -216,9 +215,7 @@ data class ControlLayoutEditorScreen(
           contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
           verticalArrangement = Arrangement.spacedBy(4.dp),
           horizontalArrangement = Arrangement.spacedBy(4.dp),
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
+          modifier = contentModifier.fillMaxSize()
         ) {
           item(span = { GridItemSpan(maxLineSpan) }) {
             Text(

@@ -79,6 +79,7 @@ import xyz.mpv.rex.presentation.components.OutlinedNumericChooser
 import xyz.mpv.rex.presentation.components.PlayerSheet
 import xyz.mpv.rex.ui.theme.spacing
 import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun SubtitleDelayPanel(
@@ -171,14 +172,8 @@ private fun SubtitleDelaySideSheet(
   ) {
     AnimatedVisibility(
       visible = isVisible,
-      enter = slideInHorizontally(
-        initialOffsetX = { fullWidth -> fullWidth },
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-      ) + fadeIn(animationSpec = tween(durationMillis = 200)),
-      exit = slideOutHorizontally(
-        targetOffsetX = { fullWidth -> fullWidth },
-        animationSpec = tween(durationMillis = 250, easing = FastOutLinearInEasing),
-      ) + fadeOut(animationSpec = tween(durationMillis = 200)),
+      enter = xyz.mpv.rex.ui.motion.RexMotion.panelEnter(LocalContext.current, fromEnd = true),
+      exit = xyz.mpv.rex.ui.motion.RexMotion.panelExit(LocalContext.current, fromEnd = true),
     ) {
       Surface(
         modifier = modifier
@@ -357,7 +352,7 @@ private fun SubtitleDelayContent(
 
     // Subtitle Sync Calibration Card
     OutlinedCard(
-      shape = RoundedCornerShape(16.dp),
+      shape = MaterialTheme.shapes.extraLarge,
       colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
       ),

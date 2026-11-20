@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import xyz.mpv.rex.preferences.BrowserPreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.utils.LocalBackStack
@@ -59,9 +60,14 @@ import me.zhanghai.compose.preference.SliderPreference
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object ShortsPreferencesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
@@ -83,37 +89,21 @@ object ShortsPreferencesScreen : Screen {
             allFolders = xyz.mpv.rex.utils.storage.CoreMediaScanner.getFlatMediaFolders(context)
         }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.pref_category_rexshorts_settings),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = backstack::navigateBack) {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                            )
-                        }
-                    },
-                )
-            },
-        ) { padding ->
+        val pageColor = MaterialTheme.colorScheme.surfaceContainer
+        val cardColor = MaterialTheme.colorScheme.surface
+
+        CollapsibleHeaderScreen(
+          containerColor = pageColor,
+            title = stringResource(R.string.pref_category_rexshorts_settings),
+            showBackButton = true,
+            onBackClick = backstack::navigateBack,
+        ) { contentModifier ->
             val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
             val lazyListState = rememberPreferenceLazyListState()
             ProvidePreferenceLocals {
                 LazyColumn(
                     state = lazyListState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    modifier = contentModifier,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = navBarHeight + 16.dp),
                 ) {
                     item {
@@ -123,6 +113,7 @@ object ShortsPreferencesScreen : Screen {
                     item {
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = listOf(R.string.pref_category_rexshorts_settings, R.string.pref_enable_rexshorts),
                             ) {
@@ -135,6 +126,7 @@ object ShortsPreferencesScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.MIDDLE,
                                 highlightKey = R.string.pref_auto_swipe_shorts,
                             ) {
@@ -147,6 +139,7 @@ object ShortsPreferencesScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.MIDDLE,
                                 highlightKey = R.string.pref_enable_glass_shorts_controls,
                             ) {
@@ -159,6 +152,7 @@ object ShortsPreferencesScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = R.string.pref_show_shorts_back_button,
                             ) {
@@ -179,6 +173,7 @@ object ShortsPreferencesScreen : Screen {
                     item {
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.FIRST,
                                 highlightKey = R.string.pref_include_short_horizontal_videos,
                             ) {
@@ -191,6 +186,7 @@ object ShortsPreferencesScreen : Screen {
                             }
 
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.MIDDLE,
                                 highlightKey = R.string.pref_max_horizontal_video_duration,
                             ) {
@@ -215,6 +211,7 @@ object ShortsPreferencesScreen : Screen {
                             val sourcedAllText = stringResource(R.string.pref_sourced_folders_all)
                             val sourcedCountText = stringResource(R.string.pref_sourced_folders_count, shortsSourceFolders.size)
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.LAST,
                                 highlightKey = R.string.pref_sourced_folders,
                             ) {
@@ -246,6 +243,7 @@ object ShortsPreferencesScreen : Screen {
                     item {
                         GroupedListColumn {
                             GroupedPreferenceCard(
+                              color = cardColor, tonalElevation = 0.dp,
                                 position = GroupPosition.ONLY,
                                 highlightKey = R.string.pref_blocked_videos,
                             ) {

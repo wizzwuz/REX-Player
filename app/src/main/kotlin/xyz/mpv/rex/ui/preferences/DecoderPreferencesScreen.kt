@@ -41,6 +41,7 @@ import xyz.mpv.rex.preferences.DecoderPreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.domain.hdr.HdrToysManager
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.player.Debanding
@@ -53,9 +54,14 @@ import me.zhanghai.compose.preference.ListPreference
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object DecoderPreferencesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
@@ -64,37 +70,21 @@ object DecoderPreferencesScreen : Screen {
     val context = LocalContext.current
     val isVulkanSupported = remember { VulkanUtils.isVulkanSupported(context) }
     var showGpuNextWarning by remember { mutableStateOf(false) }
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = {
-            Text(
-              text = stringResource(R.string.pref_decoder),
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.primary,
-            )
-          },
-          navigationIcon = {
-            IconButton(onClick = backstack::navigateBack) {
-              Icon(
-                Icons.AutoMirrored.Default.ArrowBack,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
-            }
-          },
-        )
-      },
-    ) { padding ->
+    val pageColor = MaterialTheme.colorScheme.surfaceContainer
+    val cardColor = MaterialTheme.colorScheme.surface
+
+    CollapsibleHeaderScreen(
+      containerColor = pageColor,
+      title = stringResource(R.string.pref_decoder),
+      showBackButton = true,
+      onBackClick = backstack::navigateBack,
+    ) { contentModifier ->
       val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
+      val listState = rememberPreferenceLazyListState()
       ProvidePreferenceLocals {
         LazyColumn(
-          state = rememberPreferenceLazyListState(),
-          modifier =
-            Modifier
-              .fillMaxSize()
-              .padding(padding),
+          state = listState,
+          modifier = contentModifier,
           contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = navBarHeight + 16.dp),
         ) {
           item {
@@ -114,6 +104,7 @@ object DecoderPreferencesScreen : Screen {
 
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = listOf(R.string.pref_decoder, R.string.pref_decoder_profile_title),
               ) {
@@ -132,6 +123,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_try_hw_dec_title,
               ) {
@@ -143,6 +135,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_codec_info_title,
               ) {
@@ -159,6 +152,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_gpu_next_title,
               ) {
@@ -232,6 +226,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_vulkan_title,
               ) {
@@ -263,6 +258,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_debanding_title,
               ) {
@@ -281,6 +277,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_decoder_yuv420p_title,
               ) {
@@ -298,6 +295,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_anime4k_title,
               ) {
@@ -335,6 +333,7 @@ object DecoderPreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = "HDR-to-SDR Tone Mapping (hdr-toys)",
               ) {

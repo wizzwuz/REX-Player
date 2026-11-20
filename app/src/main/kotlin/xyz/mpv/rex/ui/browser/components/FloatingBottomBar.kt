@@ -10,7 +10,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -29,7 +28,6 @@ import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -43,11 +41,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
 import xyz.mpv.rex.R
-import xyz.mpv.rex.ui.browser.MainScreen
+import xyz.mpv.rex.ui.browser.LocalNavigationBarHeight
 import xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerDefaults
 import xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerStateManager
+import xyz.mpv.rex.ui.controls.TonalIconTone
+import xyz.mpv.rex.ui.controls.tonalIconButtonColors
 import xyz.mpv.rex.ui.theme.pillShape
 import xyz.mpv.rex.ui.utils.LocalBackStack
+import xyz.mpv.rex.ui.motion.RexMotion
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Material 3 Floating Button Bar for file/folder operations
@@ -73,10 +75,12 @@ fun BrowserBottomBar(
   val miniPlayerStateManager = koinInject<MiniPlayerStateManager>()
   val miniPlayerState by miniPlayerStateManager.state.collectAsState()
   val backstack = LocalBackStack.current
-  val isMainScreen = backstack.lastOrNull() == MainScreen
   val haptic = LocalHapticFeedback.current
 
-  val navBarHeight = if (isMainScreen) 64.dp else 0.dp
+  // Mirrors `LocalNavigationBarHeight`: on MainScreen it is the app's bottom bar plus the device
+  // navigation bar inset; on pushed screens it is just the device inset (0 in gesture navigation).
+  // With 3-button navigation the pill has to clear the buttons, not hover over them.
+  val navBarHeight = LocalNavigationBarHeight.current
   val miniPlayerOffset = if (miniPlayerState.isPlaybackActive) MiniPlayerDefaults.TotalCompactOffset else 0.dp
   val targetBottomPadding = navBarHeight + miniPlayerOffset + 16.dp
 
@@ -92,44 +96,27 @@ fun BrowserBottomBar(
   AnimatedVisibility(
     visible = isSelectionMode,
     modifier = modifier.padding(bottom = animatedBottomPadding),
-    enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-      slideInVertically(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMediumLow
-        ),
-        initialOffsetY = { it / 2 }
-      ) +
-      scaleIn(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMediumLow
-        ),
-        initialScale = 0.85f
+    // Dock expand: no vertical travel, the bar grows out of its docked edge. Scale is kept
+    // small so it still reads as a distinct surface appearing.
+    enter = RexMotion.dockEnter(LocalContext.current) + scaleIn(
+      animationSpec = spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMediumLow
       ),
-    exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-      slideOutVertically(
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        targetOffsetY = { it / 2 }
-      ) +
-      scaleOut(
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        targetScale = 0.9f
-      ),
+      initialScale = 0.92f
+    ),
+    exit = RexMotion.dockExit(LocalContext.current) + scaleOut(
+      animationSpec = spring(stiffness = Spring.StiffnessMedium),
+      targetScale = 0.92f
+    ),
   ) {
     Surface(
       modifier = Modifier
         .windowInsetsPadding(WindowInsets.systemBars)
         .padding(horizontal = 20.dp, vertical = 8.dp)
-        .border(
-          width = 1.dp,
-          color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-          shape = pillShape
-        ),
+        .softFloatingShadow(pillShape, MiniPlayerDefaults.FloatingElevation),
       shape = pillShape,
       color = MaterialTheme.colorScheme.surfaceContainerHighest,
-      tonalElevation = 6.dp,
-      shadowElevation = 10.dp
     ) {
       Row(
         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -147,10 +134,7 @@ fun BrowserBottomBar(
           enabled = showCopy,
           modifier = Modifier.size(buttonSize),
           shape = buttonShape,
-          colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-          )
+          colors = tonalIconButtonColors(TonalIconTone.Secondary)
         ) {
           Icon(
             Icons.Filled.ContentCopy,
@@ -167,10 +151,7 @@ fun BrowserBottomBar(
           enabled = showMove,
           modifier = Modifier.size(buttonSize),
           shape = buttonShape,
-          colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-          )
+          colors = tonalIconButtonColors(TonalIconTone.Secondary)
         ) {
           Icon(
             Icons.AutoMirrored.Filled.DriveFileMove,
@@ -187,10 +168,7 @@ fun BrowserBottomBar(
           enabled = showRename,
           modifier = Modifier.size(buttonSize),
           shape = buttonShape,
-          colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-          )
+          colors = tonalIconButtonColors(TonalIconTone.Secondary)
         ) {
           Icon(
             Icons.Filled.DriveFileRenameOutline,
@@ -207,10 +185,7 @@ fun BrowserBottomBar(
           enabled = showAddToPlaylist,
           modifier = Modifier.size(buttonSize),
           shape = buttonShape,
-          colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-          )
+          colors = tonalIconButtonColors(TonalIconTone.Secondary)
         ) {
           Icon(
             Icons.AutoMirrored.Filled.PlaylistAdd,
@@ -227,10 +202,7 @@ fun BrowserBottomBar(
             },
             modifier = Modifier.size(buttonSize),
             shape = buttonShape,
-            colors = IconButtonDefaults.filledTonalIconButtonColors(
-              containerColor = MaterialTheme.colorScheme.secondaryContainer,
-              contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            )
+            colors = tonalIconButtonColors(TonalIconTone.Secondary)
           ) {
             Icon(
               Icons.Filled.Bookmarks,
@@ -248,10 +220,7 @@ fun BrowserBottomBar(
           enabled = showDelete,
           modifier = Modifier.size(buttonSize),
           shape = buttonShape,
-          colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer
-          )
+          colors = tonalIconButtonColors(TonalIconTone.Error)
         ) {
           Icon(
             Icons.Filled.Delete,

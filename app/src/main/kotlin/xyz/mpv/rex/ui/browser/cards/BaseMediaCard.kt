@@ -13,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,11 +25,13 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -39,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import xyz.mpv.rex.ui.motion.RexPress
 import xyz.mpv.rex.ui.theme.pillShape
 import xyz.mpv.rex.R
 
@@ -51,7 +56,7 @@ fun MediaMetadataChip(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    shape: Shape = pillShape,
+    shape: Shape = RoundedCornerShape(8.dp),
 ) {
     Surface(
         modifier = modifier,
@@ -116,44 +121,78 @@ fun BaseMediaCard(
     infoContent: @Composable (RowScope.() -> Unit)? = null,
     chipsContent: @Composable (FlowRowScope.() -> Unit)? = null,
     overlayContent: @Composable (BoxScope.() -> Unit)? = null,
+    shape: Shape? = null,
 ) {
-    val selectionScale by animateFloatAsState(
-        targetValue = if (isSelected) 0.96f else 1f,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(
+        targetValue = when {
+            isPressed -> if (shape != null) 1f else RexPress.SCALE
+            isSelected -> if (shape != null) 1f else RexPress.SCALE
+            else -> 1f
+        },
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "cardScale"
     )
     val cardBackground by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        // Fully opaque tint so the selection reads clearly against the
+        // near-white content surface instead of blending into it.
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                       else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "cardBackground"
     )
     val animatedCornerRadius by animateDpAsState(
-        targetValue = if (isSelected) 22.dp else 16.dp,
+        // Constant when an explicit shape is supplied; avoids animating an
+        // unused value on every selection change.
+        targetValue = when {
+            shape != null -> 0.dp
+            isSelected -> 22.dp
+            isGridMode -> 20.dp
+            else -> 16.dp
+        },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow
         ),
         label = "cardCornerRadius"
     )
-    val cardShape = RoundedCornerShape(animatedCornerRadius)
+    val cardShape = shape ?: RoundedCornerShape(animatedCornerRadius)
     val thumbnailShape = RoundedCornerShape(14.dp)
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isGridMode && gridColumns > 1) Modifier else Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+            .then(
+                if (isGridMode && gridColumns > 1) Modifier
+                else if (shape != null) Modifier
+                else Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
             .graphicsLayer {
-                scaleX = selectionScale
-                scaleY = selectionScale
+                scaleX = cardScale
+                scaleY = cardScale
             }
             .clip(cardShape)
-            .background(cardBackground)
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = cardShape,
+        colors = CardDefaults.cardColors(
+            // The selection tint is composited into the container colour rather
+            // than painted as a separate .background() layer, so it is clipped
+            // by the card's own rounded surface and cannot bleed past its edge.
+            containerColor = cardBackground.compositeOver(
+                if (shape != null) {
+                    if (MaterialTheme.colorScheme.background == Color.Black) Color.Black
+                    else MaterialTheme.colorScheme.surface
+                } else {
+                    Color.Transparent
+                }
+            ),
+        ),
     ) {
         if (isGridMode) {
             // GRID LAYOUT
@@ -301,7 +340,10 @@ fun BaseMediaCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp, horizontal = 8.dp),
+                    .padding(
+                        vertical = if (shape != null) 8.dp else 6.dp,
+                        horizontal = if (shape != null) 12.dp else 8.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
         // Thumbnail Box

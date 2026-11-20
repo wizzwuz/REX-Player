@@ -54,6 +54,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -111,6 +115,7 @@ import xyz.mpv.rex.BuildConfig
 import xyz.mpv.rex.ui.browser.cards.VideoCard
 import xyz.mpv.rex.ui.browser.components.BrowserBottomBar
 import xyz.mpv.rex.ui.browser.components.BrowserTopBar
+import xyz.mpv.rex.ui.browser.components.ContentSurfaceContainer
 import xyz.mpv.rex.ui.browser.components.UnifiedExplorerContent
 import xyz.mpv.rex.ui.browser.components.SelectionOverflowAction
 import xyz.mpv.rex.ui.browser.dialogs.AddToPlaylistDialog
@@ -141,6 +146,7 @@ import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.math.roundToInt
+import xyz.mpv.rex.ui.motion.RexMotion
 
 
 @Serializable
@@ -148,6 +154,7 @@ data class VideoListScreen(
   private val bucketId: String,
   private val folderName: String,
 ) : Screen {
+
   @OptIn(ExperimentalMaterial3ExpressiveApi::class)
   @Composable
   override fun Content() {
@@ -169,6 +176,7 @@ data class VideoListScreen(
     val videos by viewModel.videos.collectAsState()
     val videosWithPlaybackInfo by viewModel.videosWithPlaybackInfo.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val hasLoaded by viewModel.hasLoaded.collectAsState()
     val uiSettings by viewModel.uiSettings.collectAsState()
     val recentlyPlayedFilePath by viewModel.recentlyPlayedFilePath.collectAsState()
     val recentlyPlayedPaths by viewModel.recentlyPlayedPaths.collectAsState()
@@ -262,6 +270,12 @@ data class VideoListScreen(
     // FAB visibility state
     val isFabVisible = remember { mutableStateOf(true) }
     val isFabExpanded = remember { mutableStateOf(false) }
+    val isMiniPlayerActive = xyz.mpv.rex.ui.browser.LocalMiniPlayerActive.current
+    LaunchedEffect(isMiniPlayerActive) {
+      if (isMiniPlayerActive) {
+        isFabExpanded.value = false
+      }
+    }
 
     val autoScrollToLastPlayed by browserPreferences.autoScrollToLastPlayed.collectAsState()
     val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
@@ -386,10 +400,25 @@ data class VideoListScreen(
       }
     }
 
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+
     Scaffold(
+      modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+      // Pushed screens render in MainActivity's root Box, outside
+      // MainScreen's Scaffold, so they must set the screen tone themselves.
+      // surfaceContainer is what shows through the 3.dp card gaps and around
+      // the content surface's 24.dp corners; the default `background` is too
+      // close to the cards' `surface` fill for either to be visible.
+      containerColor = if (MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color.Black) {
+        androidx.compose.ui.graphics.Color.Black
+      } else {
+        MaterialTheme.colorScheme.surfaceContainer
+      },
       topBar = {
         BrowserTopBar(
           title = displayFolderName,
+          scrollBehavior = scrollBehavior,
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
           totalCount = sortedVideosWithInfo.size,
@@ -509,16 +538,14 @@ data class VideoListScreen(
       },
       floatingActionButton = {
         val navigationBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
-        val miniPlayerStateManager = koinInject<xyz.mpv.rex.ui.browser.miniplayer.MiniPlayerStateManager>()
-        val miniPlayerState by miniPlayerStateManager.state.collectAsState()
-        if (!hidePlayFabShowInHeader && sortedVideosWithInfo.isNotEmpty()) {
+        if (!hidePlayFabShowInHeader && sortedVideosWithInfo.isNotEmpty() && !isMiniPlayerActive) {
           TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
             tooltip = { PlainTooltip { Text(stringResource(R.string.play_recently_played_or_first)) } },
             state = rememberTooltipState(),
           ) {
             FloatingActionButtonMenu(
-              modifier = Modifier.padding(bottom = if (miniPlayerState.isPlaybackActive) navigationBarHeight + 8.dp else (navigationBarHeight - 30.dp).coerceAtLeast(0.dp)),
+              modifier = Modifier.padding(bottom = (navigationBarHeight - 4.dp).coerceAtLeast(0.dp)),
               expanded = isFabExpanded.value,
               button = {
                 TooltipBox(
@@ -598,7 +625,8 @@ data class VideoListScreen(
         VideoListContent(
           folderId = bucketId,
           videosWithInfo = sortedVideosWithInfo,
-          isLoading = isLoading && videos.isEmpty(),
+          isLoading = isLoading,
+          hasLoaded = hasLoaded,
           uiSettings = uiSettings,
           isRefreshing = isRefreshing,
           recentlyPlayedFilePath = lastPlayedInFolderPath ?: recentlyPlayedFilePath,
@@ -620,27 +648,23 @@ data class VideoListScreen(
           },
           onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
           isFabVisible = isFabVisible,
-          modifier = Modifier.padding(padding),
+          // Top inset only: the content surface owns its own bottom inset.
+          modifier = Modifier.padding(top = padding.calculateTopPadding()),
           showFloatingBottomBar = showFloatingBottomBar,
           sortType = videoSortType,
           sortOrder = videoSortOrder,
           listState = listState,
           gridState = gridState,
           pinnedPaths = mediaPins,
+          headerScrollState = topAppBarState,
         )
         
         // Floating Material 3 Button Group overlay with animation
         // Play Store gating is intentionally bypassed here.
         AnimatedVisibility(
           visible = showFloatingBottomBar,
-          enter = slideInVertically(
-            animationSpec = tween(durationMillis = animationDuration),
-            initialOffsetY = { fullHeight -> fullHeight }
-          ),
-          exit = slideOutVertically(
-            animationSpec = tween(durationMillis = animationDuration),
-            targetOffsetY = { fullHeight -> fullHeight }
-          ),
+          enter = RexMotion.dockEnter(LocalContext.current),
+          exit = RexMotion.dockExit(LocalContext.current),
           modifier = Modifier.align(Alignment.BottomCenter)
         ) {
           BrowserBottomBar(
@@ -847,6 +871,7 @@ fun VideoListContent(
   folderId: String,
   videosWithInfo: List<VideoWithPlaybackInfo>,
   isLoading: Boolean,
+  hasLoaded: Boolean = !isLoading || videosWithInfo.isNotEmpty(),
   uiSettings: UiSettings,
   isRefreshing: androidx.compose.runtime.MutableState<Boolean>,
   recentlyPlayedFilePath: String?,
@@ -867,6 +892,7 @@ fun VideoListContent(
   listState: LazyListState = rememberLazyListState(),
   gridState: LazyGridState = rememberLazyGridState(),
   pinnedPaths: List<String> = emptyList(),
+  headerScrollState: TopAppBarState? = null,
 ) {
   val thumbnailRepository = koinInject<ThumbnailRepository>()
   val browserPreferences = koinInject<BrowserPreferences>()
@@ -889,37 +915,44 @@ fun VideoListContent(
     }
   }
 
-  UnifiedExplorerContent(
-    items = videosWithInfo,
-    isLoading = isLoading,
-    uiSettings = uiSettings,
-    isSelected = { selectionManager.isSelected(it.video) },
-    onClick = { onVideoClick(it.video) },
-    onLongClick = { onVideoLongClick(it.video) },
-    onToggleSelection = { selectionManager.toggle(it.video) },
+  ContentSurfaceContainer(
+    navigationBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current,
     modifier = modifier,
-    emptyTitle = if (searchQuery != null) {
-      if (searchQuery.isBlank()) stringResource(R.string.search_empty_title) else stringResource(R.string.search_no_results_title)
-    } else {
-      stringResource(R.string.no_videos_in_folder)
-    },
-    emptyMessage = if (searchQuery != null) {
-      if (searchQuery.isBlank()) stringResource(R.string.search_empty_message) else stringResource(R.string.search_no_results_message)
-    } else {
-      stringResource(R.string.no_videos_in_folder_desc)
-    },
-    emptyIcon = if (searchQuery != null) Icons.Filled.Search else Icons.Filled.VideoLibrary,
-    isRefreshing = isRefreshing,
-    onRefresh = onRefresh,
-    isInSelectionMode = selectionManager.isInSelectionMode,
-    recentlyPlayedFilePath = recentlyPlayedFilePath,
-    recentlyPlayedFilePaths = recentlyPlayedFilePaths,
-    recentlyPlayedPaths = recentlyPlayedPaths,
-    autoScrollToLastPlayed = autoScrollToLastPlayed,
-    scrollTriggerKey = "${sortType.name}:${sortOrder.name}",
-    listState = listState,
-    gridState = gridState,
-    pinnedPaths = pinnedPaths,
-  )
+  ) {
+    UnifiedExplorerContent(
+      items = videosWithInfo,
+      isLoading = isLoading,
+      hasLoaded = hasLoaded,
+      uiSettings = uiSettings,
+      isSelected = { selectionManager.isSelected(it.video) },
+      onClick = { onVideoClick(it.video) },
+      onLongClick = { onVideoLongClick(it.video) },
+      onToggleSelection = { selectionManager.toggle(it.video) },
+      emptyTitle = if (searchQuery != null) {
+        if (searchQuery.isBlank()) stringResource(R.string.search_empty_title) else stringResource(R.string.search_no_results_title)
+      } else {
+        stringResource(R.string.no_videos_in_folder)
+      },
+      emptyMessage = if (searchQuery != null) {
+        if (searchQuery.isBlank()) stringResource(R.string.search_empty_message) else stringResource(R.string.search_no_results_message)
+      } else {
+        stringResource(R.string.no_videos_in_folder_desc)
+      },
+      emptyIcon = if (searchQuery != null) Icons.Filled.Search else Icons.Filled.VideoLibrary,
+      isRefreshing = isRefreshing,
+      onRefresh = onRefresh,
+      headerScrollState = headerScrollState,
+      isInSelectionMode = selectionManager.isInSelectionMode,
+      recentlyPlayedFilePath = recentlyPlayedFilePath,
+      recentlyPlayedFilePaths = recentlyPlayedFilePaths,
+      recentlyPlayedPaths = recentlyPlayedPaths,
+      autoScrollToLastPlayed = autoScrollToLastPlayed,
+      scrollTriggerKey = "${sortType.name}:${sortOrder.name}",
+      listState = listState,
+      gridState = gridState,
+      pinnedPaths = pinnedPaths,
+      useContentSurface = true,
+    )
+  }
 }
 

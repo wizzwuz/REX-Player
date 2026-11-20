@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ import xyz.mpv.rex.jellyfin.preferences.JellyfinPreferences
 import xyz.mpv.rex.jellyfin.remote.JellyfinRemoteClient
 import xyz.mpv.rex.jellyfin.remote.JellyfinRemoteService
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.ui.utils.LocalBackStack
 import xyz.mpv.rex.ui.utils.navigateBack
 import kotlinx.serialization.Serializable
@@ -77,27 +79,30 @@ object JellyfinSettingsScreen : Screen {
       configured = prefs.isConfigured()
     }
 
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { Text("Jellyfin") },
-          navigationIcon = {
-            IconButton(onClick = { backstack.navigateBack() }) {
-              Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
-            }
-          },
-        )
-      },
-    ) { padding ->
+    // Same recipe as the settings screens: the page is the `surfaceContainer`
+    // backdrop and the cards are lifted onto `surface` above it.
+    val pageColor = MaterialTheme.colorScheme.surfaceContainer
+    val cardColor = MaterialTheme.colorScheme.surface
+
+    CollapsibleHeaderScreen(
+      title = "Jellyfin",
+      showBackButton = true,
+      onBackClick = { backstack.navigateBack() },
+      containerColor = pageColor,
+    ) { contentModifier ->
+      val scrollState = rememberScrollState()
       Column(
-        modifier = Modifier
+        modifier = contentModifier
           .fillMaxSize()
-          .padding(padding)
-          .padding(16.dp)
-          .verticalScroll(rememberScrollState()),
+          .verticalScroll(scrollState)
+          .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = cardColor),
+          shape = MaterialTheme.shapes.extraLarge,
+        ) {
           Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Jellyfin Server", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
@@ -183,7 +188,11 @@ object JellyfinSettingsScreen : Screen {
           }
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = cardColor),
+          shape = MaterialTheme.shapes.extraLarge,
+        ) {
           Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
               modifier = Modifier.fillMaxWidth(),

@@ -12,7 +12,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -45,9 +49,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.animateFloatingActionButton
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -63,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -103,6 +111,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import xyz.mpv.rex.preferences.AppearancePreferences
+import xyz.mpv.rex.ui.motion.RexMotion
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -124,6 +133,7 @@ fun MediaLibraryContent() {
   val videos by viewModel.videos.collectAsState()
   val videosWithPlaybackInfo by viewModel.videosWithPlaybackInfo.collectAsState()
   val isLoading by viewModel.isLoading.collectAsState()
+  val hasLoaded by viewModel.hasLoaded.collectAsState()
   val uiSettings by viewModel.uiSettings.collectAsState()
   val recentlyPlayedFilePath by viewModel.recentlyPlayedFilePath.collectAsState()
   val recentlyPlayedFilePaths by viewModel.recentlyPlayedFilePaths.collectAsState()
@@ -194,6 +204,12 @@ fun MediaLibraryContent() {
   // FAB visibility state
   val isFabVisible = remember { mutableStateOf(true) }
   val isFabExpanded = remember { mutableStateOf(false) }
+  val isMiniPlayerActive = xyz.mpv.rex.ui.browser.LocalMiniPlayerActive.current
+  LaunchedEffect(isMiniPlayerActive) {
+    if (isMiniPlayerActive) {
+      isFabExpanded.value = false
+    }
+  }
   val showLinkDialog = remember { mutableStateOf(false) }
 
   val filePicker = rememberLauncherForActivityResult(
@@ -243,7 +259,20 @@ fun MediaLibraryContent() {
     }
   }
 
+  val topAppBarState = rememberTopAppBarState()
+  val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
+
   Scaffold(
+    modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+    // Nested/pushed screens must set the screen tone themselves; it does not
+    // propagate from MainScreen across a NavDisplay boundary, and a nested
+    // Scaffold overrides it. surfaceContainer is what shows through the
+    // content surface's gaps and around its 24.dp corners.
+    containerColor = if (MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color.Black) {
+      androidx.compose.ui.graphics.Color.Black
+    } else {
+      MaterialTheme.colorScheme.surfaceContainer
+    },
     topBar = {
       if (isSearching) {
         SearchBar(
@@ -273,6 +302,7 @@ fun MediaLibraryContent() {
       } else {
         BrowserTopBar(
           title = stringResource(xyz.mpv.rex.R.string.app_name),
+          scrollBehavior = scrollBehavior,
           isInSelectionMode = selectionManager.isInSelectionMode,
           selectedCount = selectionManager.selectedCount,
           totalCount = sortedVideosWithInfo.size,
@@ -376,9 +406,9 @@ fun MediaLibraryContent() {
       }
     },
     floatingActionButton = {
-      if (!hidePlayFabShowInHeader && !selectionManager.isInSelectionMode && isFabVisible.value && sortedVideosWithInfo.isNotEmpty()) {
+      if (!hidePlayFabShowInHeader && !selectionManager.isInSelectionMode && isFabVisible.value && sortedVideosWithInfo.isNotEmpty() && !isMiniPlayerActive) {
         FloatingActionButtonMenu(
-          modifier = Modifier.padding(bottom = navigationBarHeight + 8.dp),
+          modifier = Modifier.padding(bottom = (navigationBarHeight - 4.dp).coerceAtLeast(0.dp)),
           expanded = isFabExpanded.value,
           button = {
             TooltipBox(
@@ -505,7 +535,8 @@ fun MediaLibraryContent() {
       VideoListContent(
         folderId = "media_library",
         videosWithInfo = displayVideos,
-        isLoading = isLoading && videos.isEmpty(),
+        isLoading = isLoading,
+        hasLoaded = hasLoaded,
         uiSettings = uiSettings,
         isRefreshing = isRefreshing,
         recentlyPlayedFilePath = recentlyPlayedFilePath,
@@ -523,24 +554,30 @@ fun MediaLibraryContent() {
         },
         onVideoLongClick = { video -> selectionManager.handleLongClick(video) },
         isFabVisible = isFabVisible,
-        modifier = Modifier.padding(padding),
+        // The Scaffold's padding includes the navigation-bar inset, and
+        // VideoListContent's ContentSurfaceContainer adds it again on top of its
+        // own 14.dp gap — which left a double-height empty band under the sheet.
+        // Drop only the bottom here; the container owns the bottom inset.
+        modifier = Modifier.padding(
+          PaddingValues(
+            start = padding.calculateStartPadding(LocalLayoutDirection.current),
+            top = padding.calculateTopPadding(),
+            end = padding.calculateEndPadding(LocalLayoutDirection.current),
+            bottom = 0.dp,
+          )
+        ),
         showFloatingBottomBar = showFloatingBottomBar,
         sortType = videoSortType,
         sortOrder = videoSortOrder,
         searchQuery = if (isSearching) searchQuery else null,
         pinnedPaths = mediaPins,
+        headerScrollState = topAppBarState,
       )
 
       AnimatedVisibility(
         visible = showFloatingBottomBar,
-        enter = slideInVertically(
-          animationSpec = tween(durationMillis = animationDuration),
-          initialOffsetY = { fullHeight -> fullHeight }
-        ),
-        exit = slideOutVertically(
-          animationSpec = tween(durationMillis = animationDuration),
-          targetOffsetY = { fullHeight -> fullHeight }
-        ),
+        enter = RexMotion.dockEnter(LocalContext.current),
+          exit = RexMotion.dockExit(LocalContext.current),
         modifier = Modifier.align(Alignment.BottomCenter)
       ) {
         BrowserBottomBar(

@@ -61,6 +61,22 @@ object SearchablePreferences {
                 targetIndex = 3,
             ))
             add(SearchablePreference(
+                titleRes = R.string.pref_appearance_theme_preset_title,
+                summaryRes = R.string.pref_appearance_theme_preset_summary,
+                keywords = listOf("preset", "theme", "color", "palette", "expressive", "m3"),
+                category = "Appearance",
+                screen = AppearancePreferencesScreen,
+                targetIndex = 3,
+            ))
+            add(SearchablePreference(
+                titleRes = R.string.pref_appearance_settings_badge_shape_title,
+                summaryRes = R.string.pref_appearance_settings_badge_shape_summary,
+                keywords = listOf("badge", "shape", "squircle", "circle", "icon"),
+                category = "Appearance",
+                screen = AppearancePreferencesScreen,
+                targetIndex = 3,
+            ))
+            add(SearchablePreference(
                 titleRes = R.string.pref_appearance_match_player_controls_to_theme_title,
                 summaryRes = R.string.pref_appearance_match_player_controls_to_theme_summary,
                 keywords = listOf("controls", "theme", "color", "accent", "match"),
@@ -83,6 +99,14 @@ object SearchablePreferences {
                 category = "Appearance",
                 screen = AppearancePreferencesScreen,
                 targetIndex = 3,
+            ))
+            add(SearchablePreference(
+                titleRes = R.string.pref_appearance_motion_preset_title,
+                summaryRes = R.string.pref_appearance_motion_preset_summary,
+                keywords = listOf("motion", "animation", "transition", "slide", "parallax", "shared-z", "zoom", "preset"),
+                category = "Appearance",
+                screen = AppearancePreferencesScreen,
+                targetIndex = 5,
             ))
             add(SearchablePreference(
                 titleRes = R.string.pref_appearance_tab_home_title,

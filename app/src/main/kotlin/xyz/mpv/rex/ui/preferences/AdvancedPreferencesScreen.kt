@@ -54,6 +54,7 @@ import xyz.mpv.rex.preferences.AdvancedPreferences
 import xyz.mpv.rex.preferences.SettingsManager
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.ConfirmDialog
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
@@ -73,9 +74,14 @@ import java.io.File
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.outputStream
 import kotlin.io.path.readLines
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object AdvancedPreferencesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
@@ -184,29 +190,15 @@ object AdvancedPreferencesScreen : Screen {
       )
     }
 
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { 
-            Text(
-              text = stringResource(R.string.pref_advanced),
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.primary,
-            )
-          },
-          navigationIcon = {
-            IconButton(onClick = backStack::navigateBack) {
-              Icon(
-                Icons.AutoMirrored.Default.ArrowBack, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
-            }
-          },
-        )
-      },
-    ) { padding ->
+    val pageColor = MaterialTheme.colorScheme.surfaceContainer
+    val cardColor = MaterialTheme.colorScheme.surface
+
+    CollapsibleHeaderScreen(
+      containerColor = pageColor,
+      title = stringResource(R.string.pref_advanced),
+      showBackButton = true,
+      onBackClick = backStack::navigateBack,
+    ) { contentModifier ->
       ProvidePreferenceLocals {
         val locationPicker =
           rememberLauncherForActivityResult(
@@ -220,11 +212,10 @@ object AdvancedPreferencesScreen : Screen {
           }
         val mpvConfStorageLocation by preferences.mpvConfStorageUri.collectAsState()
         val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
+        val listState = rememberPreferenceLazyListState()
         LazyColumn(
-          state = rememberPreferenceLazyListState(),
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
+          state = listState,
+          modifier = contentModifier,
           contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = navBarHeight + 16.dp),
         ) {
           // Backup & Restore Section
@@ -235,6 +226,7 @@ object AdvancedPreferencesScreen : Screen {
           item {
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = listOf(R.string.pref_advanced, R.string.pref_export_settings_title),
               ) {
@@ -260,6 +252,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_import_settings_title,
               ) {
@@ -355,6 +348,7 @@ object AdvancedPreferencesScreen : Screen {
             
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_advanced_mpv_conf_storage_location,
               ) {
@@ -382,6 +376,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_advanced_mpv_conf,
               ) {
@@ -408,6 +403,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_advanced_input_conf,
               ) {
@@ -446,6 +442,7 @@ object AdvancedPreferencesScreen : Screen {
             
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_enable_lua_scripts_title,
               ) {
@@ -463,6 +460,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_manage_lua_scripts_title,
               ) {
@@ -511,6 +509,7 @@ object AdvancedPreferencesScreen : Screen {
             
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_clear_config_cache_title,
               ) {
@@ -542,6 +541,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_clear_thumbnail_cache_title,
               ) {
@@ -585,6 +585,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_advanced_clear_fonts_cache,
               ) {
@@ -638,6 +639,7 @@ object AdvancedPreferencesScreen : Screen {
 
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.ONLY,
                 highlightKey = R.string.pref_advanced_enable_media_info_title,
               ) {
@@ -672,6 +674,7 @@ object AdvancedPreferencesScreen : Screen {
             
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_advanced_verbose_logging_title,
               ) {
@@ -689,6 +692,7 @@ object AdvancedPreferencesScreen : Screen {
               }
               
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_advanced_dump_logs_title,
               ) {

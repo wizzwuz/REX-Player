@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import xyz.mpv.rex.R
 import xyz.mpv.rex.preferences.preference.PreferenceStore
 import xyz.mpv.rex.preferences.preference.getEnum
+import xyz.mpv.rex.presentation.MotionStyle
 import xyz.mpv.rex.ui.theme.AppTheme
 import xyz.mpv.rex.ui.theme.DarkMode
 import xyz.mpv.rex.ui.theme.spacing
@@ -22,6 +23,9 @@ class AppearancePreferences(
 ) {
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
   val appTheme = preferenceStore.getEnum("app_theme", AppTheme.Default)
+  val navigationMotionStyle = preferenceStore.getEnum("navigation_motion_style", MotionStyle.ExpressiveParallax)
+  val themePreset = preferenceStore.getString("theme_preset", "Default")
+  val settingsBadgeShape = preferenceStore.getString("settings_badge_shape", "SQUIRCLE")
   val appLanguage = preferenceStore.getString("app_language", "")
   val onboardingCompleted = preferenceStore.getBoolean("onboarding_completed", false)
   val materialYou = preferenceStore.getBoolean("material_you", true)
@@ -44,6 +48,7 @@ class AppearancePreferences(
   val customProfileImagePath = preferenceStore.getString("custom_profile_image_path", "")
   val showUnplayedOldVideoLabel = preferenceStore.getBoolean("show_unplayed_old_video_label", true)
   val unplayedOldVideoDays = preferenceStore.getInt("unplayed_old_video_days", 7)
+
   val showNetworkThumbnails = preferenceStore.getBoolean("show_network_thumbnails", false)
   val seekbarStyle = preferenceStore.getEnum("seekbar_style", SeekbarStyle.Standard)
   val playerAlwaysDarkMode = preferenceStore.getBoolean("player_always_dark_mode", true)

@@ -39,6 +39,7 @@ import xyz.mpv.rex.preferences.GesturePreferences
 import xyz.mpv.rex.preferences.PlayerPreferences
 import xyz.mpv.rex.preferences.preference.collectAsState
 import xyz.mpv.rex.presentation.Screen
+import xyz.mpv.rex.presentation.components.CollapsibleHeaderScreen
 import xyz.mpv.rex.presentation.components.GroupPosition
 import xyz.mpv.rex.presentation.components.GroupedListColumn
 import xyz.mpv.rex.ui.player.CustomKeyCodes
@@ -54,9 +55,14 @@ import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
 import xyz.mpv.rex.ui.preferences.components.SwitchPreference
 import org.koin.compose.koinInject
+import xyz.mpv.rex.presentation.MotionStyle
 
 @Serializable
 object GesturePreferencesScreen : Screen {
+  /** Settings keep the app's original full horizontal push. */
+  override val motion: MotionStyle
+    get() = MotionStyle.Default
+
   @OptIn(ExperimentalMaterial3Api::class)
   @Composable
   override fun Content() {
@@ -70,37 +76,21 @@ object GesturePreferencesScreen : Screen {
     var showCustomSeekDialog by remember { mutableStateOf(false) }
     var customSeekValue by remember { mutableStateOf("") }
 
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { 
-            Text(
-              text = stringResource(R.string.pref_gesture),
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.ExtraBold,
-              color = MaterialTheme.colorScheme.primary,
-            ) 
-          },
-          navigationIcon = {
-            IconButton(onClick = backstack::navigateBack) {
-              Icon(
-                Icons.AutoMirrored.Default.ArrowBack, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-              )
-            }
-          },
-        )
-      },
-    ) { padding ->
+    val pageColor = MaterialTheme.colorScheme.surfaceContainer
+    val cardColor = MaterialTheme.colorScheme.surface
+
+    CollapsibleHeaderScreen(
+      containerColor = pageColor,
+      title = stringResource(R.string.pref_gesture),
+      showBackButton = true,
+      onBackClick = backstack::navigateBack,
+    ) { contentModifier ->
       val navBarHeight = xyz.mpv.rex.ui.browser.LocalNavigationBarHeight.current
+      val listState = rememberPreferenceLazyListState()
       ProvidePreferenceLocals {
         LazyColumn(
-          state = rememberPreferenceLazyListState(),
-          modifier =
-            Modifier
-              .fillMaxSize()
-              .padding(padding),
+          state = listState,
+          modifier = contentModifier,
           contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = navBarHeight + 16.dp),
         ) {
           item {
@@ -126,6 +116,7 @@ object GesturePreferencesScreen : Screen {
 
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_player_gestures_brightness,
               ) {
@@ -137,6 +128,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_volume,
               ) {
@@ -148,6 +140,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_pinch_to_zoom,
               ) {
@@ -159,6 +152,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_pan_and_zoom,
               ) {
@@ -171,6 +165,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_horizontal_swipe_to_seek,
               ) {
@@ -182,6 +177,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_horizontal_swipe_sensitivity,
               ) {
@@ -203,6 +199,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_swipe_to_subtitle_seek_title,
               ) {
@@ -215,6 +212,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_move_subtitle_by_dragging_title,
               ) {
@@ -227,6 +225,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_pinch_to_resize_subtitle_title,
               ) {
@@ -239,6 +238,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_gestures_hold_for_multiple_speed,
               ) {
@@ -264,6 +264,7 @@ object GesturePreferencesScreen : Screen {
                 }
               }
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_remember_long_press_speed_title,
               ) {
@@ -288,6 +289,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = listOf(R.string.pref_player_dynamic_speed_overlay, R.string.pref_dynamic_speed_overlay_title),
               ) {
@@ -305,6 +307,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_show_speed_indicator_overlay,
               ) {
@@ -322,6 +325,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_tap_thumbnail_to_select_title,
               ) {
@@ -339,6 +343,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_player_controls_allow_gestures_in_panels,
               ) {
@@ -381,6 +386,7 @@ object GesturePreferencesScreen : Screen {
 
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = listOf(R.string.pref_gesture, R.string.pref_player_double_tap_seek_duration),
               ) {
@@ -417,6 +423,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = listOf(R.string.pref_gesture_double_tap_seek_area_width_title, R.string.pref_double_tap_seek_area_width_title),
               ) {
@@ -436,6 +443,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.show_splash_ovals_on_double_tap_to_seek,
               ) {
@@ -447,6 +455,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_show_circular_double_tap_seek_title,
               ) {
@@ -459,6 +468,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.show_time_on_double_tap_to_seek,
               ) {
@@ -470,6 +480,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_reverse_double_tap_title,
               ) {
@@ -482,6 +493,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_double_tap_chapter_skip_title,
               ) {
@@ -494,6 +506,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_dont_show_seekbar_on_double_tap_title,
               ) {
@@ -549,6 +562,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = listOf(R.string.pref_gesture_double_tap_center_title, R.string.pref_gesture_single_tap_center_title),
               ) {
@@ -578,6 +592,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_double_tap_right_title,
               ) {
@@ -595,6 +610,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_use_single_tap_for_center_title,
               ) {
@@ -616,6 +632,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_use_single_tap_for_left_right_title,
               ) {
@@ -672,6 +689,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_instant_controls_toggle_title,
               ) {
@@ -700,6 +718,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_prevent_seekbar_tap_title,
               ) {
@@ -720,6 +739,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_use_relative_seeking_title,
               ) {
@@ -740,6 +760,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_gesture_enable_release_to_cancel_title,
               ) {
@@ -845,6 +866,7 @@ object GesturePreferencesScreen : Screen {
 
             GroupedListColumn {
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.FIRST,
                 highlightKey = R.string.pref_gesture_media_previous,
               ) {
@@ -862,6 +884,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_gesture_media_play,
               ) {
@@ -884,6 +907,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.MIDDLE,
                 highlightKey = R.string.pref_player_controls_disable_media_buttons_title,
               ) {
@@ -901,6 +925,7 @@ object GesturePreferencesScreen : Screen {
               }
 
               GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
                 position = GroupPosition.LAST,
                 highlightKey = R.string.pref_gesture_media_next,
               ) {

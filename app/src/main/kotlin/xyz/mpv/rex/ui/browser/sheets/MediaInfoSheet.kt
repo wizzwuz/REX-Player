@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package xyz.mpv.rex.ui.browser.sheets
 
 import android.content.ClipData
@@ -21,7 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
@@ -36,7 +37,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -70,6 +70,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import xyz.mpv.rex.ui.controls.TonalIconTone
+import xyz.mpv.rex.ui.controls.tonalIconButtonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,10 +191,7 @@ fun MediaInfoSheet(uri: Uri, onDismiss: () -> Unit) {
                             Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
                         },
                         shape = CircleShape,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        ),
+                        colors = tonalIconButtonColors(TonalIconTone.Secondary),
                     ) {
                         Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy))
                     }
@@ -201,10 +200,7 @@ fun MediaInfoSheet(uri: Uri, onDismiss: () -> Unit) {
                             scope.launch { shareMediaInfo(context, textContent!!, fileName) }
                         },
                         shape = CircleShape,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        ),
+                        colors = tonalIconButtonColors(TonalIconTone.Secondary),
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.generic_share))
                     }
@@ -248,7 +244,7 @@ fun MediaInfoSheet(uri: Uri, onDismiss: () -> Unit) {
                 ) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = MaterialTheme.shapes.extraLargeIncreased,
                     ) {
                         Text(
                             text = stringResource(R.string.media_info_error_prefix, error ?: ""),
@@ -328,7 +324,7 @@ private fun MediaInfoSectionCard(section: InfoSection) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.extraLargeIncreased,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -509,7 +505,7 @@ fun MultiSelectionInfoSheet(count: Int, totalBytes: Long, totalDurationMs: Long,
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                shape = MaterialTheme.shapes.large,
+                shape = MaterialTheme.shapes.extraLarge,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
