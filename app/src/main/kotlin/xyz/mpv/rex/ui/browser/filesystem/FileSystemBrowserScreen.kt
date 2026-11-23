@@ -48,6 +48,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ZoomIn
+import xyz.mpv.rex.utils.media.FolderZoomOps
+import xyz.mpv.rex.domain.playbackstate.repository.PlaybackStateRepository
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
@@ -193,6 +196,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val clipboardManager = LocalClipboardManager.current
   val browserPreferences = koinInject<BrowserPreferences>()
   val playerPreferences = koinInject<xyz.mpv.rex.preferences.PlayerPreferences>()
+  val playbackStateRepository = koinInject<PlaybackStateRepository>()
   val appearancePreferences = koinInject<AppearancePreferences>()
   val hidePlayFabShowInHeader by appearancePreferences.hidePlayFabShowInHeader.collectAsState()
   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -687,6 +691,71 @@ fun FileSystemBrowserScreen(path: String? = null) {
                 label = stringResource(R.string.web_share_title),
                 onClick = { showWebShareSheet = true },
               ))
+              if (folderSelectionManager.isInSelectionMode) {
+                add(SelectionOverflowAction(
+                  icon = Icons.Filled.ZoomIn,
+                  label = stringResource(R.string.save_zoom),
+                  onClick = {
+                    coroutineScope.launch(Dispatchers.IO) {
+                      val selectedFolders = folderSelectionManager.getSelectedItems()
+                      if (selectedFolders.isEmpty()) return@launch
+
+                      var totalApplied = 0
+                      var foldersProcessed = 0
+                      var noStateCount = 0
+
+                      for (folder in selectedFolders) {
+                        val videos = collectVideosRecursively(context, folder.path)
+                        when (val res = FolderZoomOps.applyFirstVideoZoom(videos, playbackStateRepository, browserPreferences, playerPreferences)) {
+                          is FolderZoomOps.ApplyZoomResult.Success -> {
+                            totalApplied += res.appliedCount
+                            foldersProcessed++
+                          }
+                          is FolderZoomOps.ApplyZoomResult.NoFirstVideoState -> {
+                            noStateCount++
+                          }
+                          is FolderZoomOps.ApplyZoomResult.NoVideos -> {}
+                        }
+                      }
+
+                      withContext(Dispatchers.Main) {
+                        when {
+                          foldersProcessed > 0 && totalApplied > 0 -> {
+                            Toast.makeText(
+                              context,
+                              context.getString(R.string.save_zoom_applied, totalApplied),
+                              Toast.LENGTH_SHORT,
+                            ).show()
+                          }
+                          foldersProcessed > 0 && totalApplied == 0 -> {
+                            Toast.makeText(
+                              context,
+                              context.getString(R.string.save_zoom_single_video),
+                              Toast.LENGTH_SHORT,
+                            ).show()
+                          }
+                          noStateCount > 0 -> {
+                            Toast.makeText(
+                              context,
+                              context.getString(R.string.no_saved_zoom_first_video),
+                              Toast.LENGTH_SHORT,
+                            ).show()
+                          }
+                          else -> {
+                            Toast.makeText(
+                              context,
+                              context.getString(R.string.no_videos_in_folder),
+                              Toast.LENGTH_SHORT,
+                            ).show()
+                          }
+                        }
+                        folderSelectionManager.clear()
+                        videoSelectionManager.clear()
+                      }
+                    }
+                  },
+                ))
+              }
               if (folderSelectionManager.isInSelectionMode && !videoSelectionManager.isInSelectionMode) {
                 add(SelectionOverflowAction(
                   icon = Icons.Filled.Block,

@@ -885,6 +885,10 @@
     <string name="copy_video_path">Copy video file path</string>
     <string name="copy_folder_path">Copy folder path</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="save_zoom">Save zoom</string>
+    <string name="save_zoom_applied">Applied zoom to %1$d video(s) in folder</string>
+    <string name="save_zoom_single_video">Folder has only one video</string>
+    <string name="no_saved_zoom_first_video">No saved zoom found for the first video</string>
     
     <!-- Media Info Screen -->
     <string name="media_info_title">Media Info</string>

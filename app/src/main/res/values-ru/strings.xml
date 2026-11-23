@@ -711,6 +711,10 @@
 	<string name="copy_video_path">Копировать путь к видеофайлу</string>
 	<string name="copy_folder_path">Копировать путь к папке</string>
 	<string name="copied_to_clipboard">Скопировано в буфер обмена</string>
+	<string name="save_zoom">Сохранить зум</string>
+	<string name="save_zoom_applied">Зум применен к %1$d видео в папке</string>
+	<string name="save_zoom_single_video">В папке только одно видео</string>
+	<string name="no_saved_zoom_first_video">Для первого видео нет сохраненного зума</string>
 
 	<!-- Media Info Screen -->
 	<string name="media_info_title">Медиаинформация</string>

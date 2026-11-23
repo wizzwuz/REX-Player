@@ -47,6 +47,10 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.ZoomIn
+import xyz.mpv.rex.utils.media.FolderZoomOps
+import xyz.mpv.rex.preferences.PlayerPreferences
+import xyz.mpv.rex.domain.playbackstate.repository.PlaybackStateRepository
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -202,6 +206,8 @@ object FolderListScreen : Screen {
     val foldersPreferences = koinInject<FoldersPreferences>()
     val advancedPreferences = koinInject<xyz.mpv.rex.preferences.AdvancedPreferences>()
     val appearancePreferences = koinInject<AppearancePreferences>()
+    val playerPreferences = koinInject<PlayerPreferences>()
+    val playbackStateRepository = koinInject<PlaybackStateRepository>()
     val hidePlayFabShowInHeader by appearancePreferences.hidePlayFabShowInHeader.collectAsState()
 
     // Pinned folders (issue #466), scoped to the album view so tree-view pins
@@ -535,6 +541,69 @@ object FolderListScreen : Screen {
             onInvertSelection = { selectionManager.invertSelection() },
             onDeselectAll = { selectionManager.clear() },
             selectionOverflowActions = buildList {
+              add(SelectionOverflowAction(
+                icon = Icons.Filled.ZoomIn,
+                label = stringResource(R.string.save_zoom),
+                onClick = {
+                  coroutineScope.launch(Dispatchers.IO) {
+                    val selectedFolders = selectionManager.getSelectedItems()
+                    if (selectedFolders.isEmpty()) return@launch
+
+                    var totalApplied = 0
+                    var foldersProcessed = 0
+                    var noStateCount = 0
+
+                    for (folder in selectedFolders) {
+                      val videos = MediaFileRepository.getVideosForBuckets(context, setOf(folder.bucketId))
+                        .let { list -> if (!showAudioFiles) list.filter { !it.isAudio } else list }
+                      when (val res = FolderZoomOps.applyFirstVideoZoom(videos, playbackStateRepository, browserPreferences, playerPreferences)) {
+                        is FolderZoomOps.ApplyZoomResult.Success -> {
+                          totalApplied += res.appliedCount
+                          foldersProcessed++
+                        }
+                        is FolderZoomOps.ApplyZoomResult.NoFirstVideoState -> {
+                          noStateCount++
+                        }
+                        is FolderZoomOps.ApplyZoomResult.NoVideos -> {}
+                      }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                      when {
+                        foldersProcessed > 0 && totalApplied > 0 -> {
+                          Toast.makeText(
+                            context,
+                            context.getString(R.string.save_zoom_applied, totalApplied),
+                            Toast.LENGTH_SHORT,
+                          ).show()
+                        }
+                        foldersProcessed > 0 && totalApplied == 0 -> {
+                          Toast.makeText(
+                            context,
+                            context.getString(R.string.save_zoom_single_video),
+                            Toast.LENGTH_SHORT,
+                          ).show()
+                        }
+                        noStateCount > 0 -> {
+                          Toast.makeText(
+                            context,
+                            context.getString(R.string.no_saved_zoom_first_video),
+                            Toast.LENGTH_SHORT,
+                          ).show()
+                        }
+                        else -> {
+                          Toast.makeText(
+                            context,
+                            context.getString(R.string.no_videos_in_folder),
+                            Toast.LENGTH_SHORT,
+                          ).show()
+                        }
+                      }
+                      selectionManager.clear()
+                    }
+                  }
+                },
+              ))
               add(SelectionOverflowAction(
                 icon = Icons.Filled.Share,
                 label = stringResource(R.string.generic_share),
