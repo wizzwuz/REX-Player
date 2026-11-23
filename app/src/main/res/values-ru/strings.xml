@@ -157,6 +157,8 @@
 	<string name="pref_player_seeking_title">Перемотка</string>
 	<string name="pref_player_close_after_eof">Закрывать после окончания воспроизведения</string>
 	<string name="pref_player_remember_brightness">Запоминать яркость дисплея</string>
+	<string name="pref_player_remember_video_zoom">Запоминать масштаб и панораму для каждого видео</string>
+	<string name="pref_player_remember_video_zoom_summary">Сохранять ручные настройки масштабирования и панорамирования отдельно для каждого видео</string>
 
 	<string name="pref_player_gestures">Жесты</string>
 	<string name="pref_player_gestures_brightness">Жесты яркости</string>

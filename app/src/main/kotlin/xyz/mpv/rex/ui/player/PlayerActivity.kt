@@ -2075,6 +2075,8 @@ class PlayerActivity :
     // Reset pan and advanced zoom; aspect ratio and regular zoom are finalized with playback state.
     viewModel.resetVisualPreferences()
     viewModel.clearResumePrompt()
+    playbackStateController.currentSavedSubPos = null
+    playbackStateController.currentSavedSecondarySubPos = null
     needsAspectReapply = true
     isPlaybackStateLoaded = false
 
@@ -2485,9 +2487,19 @@ class PlayerActivity :
     safeSetPropertyString("sub-use-margins", scaleValue)
 
     MPVLib.setPropertyFloat("sub-scale", subtitlesPreferences.subScale.get())
-    MPVLib.setPropertyInt("sub-pos", subtitlesPreferences.subPos.get())
+    val savedSubPos = playbackStateController.currentSavedSubPos
+    if (savedSubPos != null) {
+      MPVLib.setPropertyInt("sub-pos", savedSubPos)
+    } else {
+      MPVLib.setPropertyInt("sub-pos", subtitlesPreferences.subPos.get())
+    }
     MPVLib.setPropertyFloat("secondary-sub-scale", subtitlesPreferences.secondarySubScale.get())
-    MPVLib.setPropertyInt("secondary-sub-pos", subtitlesPreferences.secondarySubPos.get())
+    val savedSecSubPos = playbackStateController.currentSavedSecondarySubPos
+    if (savedSecSubPos != null) {
+      MPVLib.setPropertyInt("secondary-sub-pos", savedSecSubPos)
+    } else {
+      MPVLib.setPropertyInt("secondary-sub-pos", subtitlesPreferences.secondarySubPos.get())
+    }
 
     Log.d(TAG, "Applied subtitle preferences")
   }

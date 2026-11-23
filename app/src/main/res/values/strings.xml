@@ -238,6 +238,8 @@
     <string name="pref_player_default_aspect_ratio">Default aspect ratio</string>
     <string name="pref_player_remember_aspect_ratio">Remember aspect ratio across videos</string>
     <string name="pref_player_remember_aspect_ratio_summary">Save the aspect ratio used in the player for subsequent videos</string>
+    <string name="pref_player_remember_video_zoom">Remember video zoom &amp; pan per video</string>
+    <string name="pref_player_remember_video_zoom_summary">Save manual zoom and pan adjustments individually for each video</string>
 
     <string name="pref_player_gestures">Gestures</string>
     <string name="pref_player_gestures_brightness">Brightness gestures</string>

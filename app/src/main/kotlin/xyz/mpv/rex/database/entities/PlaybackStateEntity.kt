@@ -9,10 +9,16 @@ data class PlaybackStateEntity(
   val lastPosition: Int, // in seconds
   val playbackSpeed: Double,
   val videoZoom: Float = 0f,
+  val videoPanX: Float = 0f,
+  val videoPanY: Float = 0f,
+  val videoScaleX: Float = 1f,
+  val videoScaleY: Float = 1f,
   val sid: Int,
   val secondarySid: Int = -1, // Secondary subtitle track ID (-1 means disabled)
   val subDelay: Int,
   val subSpeed: Double,
+  val subPos: Int? = null,
+  val secondarySubPos: Int? = null,
   val aid: Int,
   val audioDelay: Int,
   val timeRemaining: Int = 0, // in seconds (duration - lastPosition)

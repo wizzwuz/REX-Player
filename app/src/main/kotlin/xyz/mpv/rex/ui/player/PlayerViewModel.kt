@@ -1406,27 +1406,30 @@ class PlayerViewModel(
     }
 
     // Aspect ratio and regular zoom are restored together after the video's saved state is available.
-    _videoZoom.value = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f
+    val rememberVideoZoom = playerPreferences.rememberVideoZoom.get()
+    if (!rememberVideoZoom) {
+      val defaultZoom = playerPreferences.defaultVideoZoom.get()
+      _videoZoom.value = defaultZoom
+      MPVLib.setPropertyDouble("video-zoom", defaultZoom.toDouble())
 
-    // Restore pan preferences or sync from mpv.conf/engine defaults.
-    val prefPanX = playerPreferences.defaultVideoPanX.get()
-    val prefPanY = playerPreferences.defaultVideoPanY.get()
-
-    if (prefPanX != 0f || prefPanY != 0f) {
-      MPVLib.setPropertyDouble("video-pan-x", prefPanX.toDouble())
-      MPVLib.setPropertyDouble("video-pan-y", prefPanY.toDouble())
+      val prefPanX = playerPreferences.defaultVideoPanX.get()
+      val prefPanY = playerPreferences.defaultVideoPanY.get()
       _videoPanX.value = prefPanX
       _videoPanY.value = prefPanY
+      MPVLib.setPropertyDouble("video-pan-x", prefPanX.toDouble())
+      MPVLib.setPropertyDouble("video-pan-y", prefPanY.toDouble())
     } else {
-      val mpvPanX = MPVLib.getPropertyDouble("video-pan-x")?.toFloat() ?: 0f
-      val mpvPanY = MPVLib.getPropertyDouble("video-pan-y")?.toFloat() ?: 0f
-      _videoPanX.value = mpvPanX
-      _videoPanY.value = mpvPanY
+      _videoZoom.value = 0f
+      _videoPanX.value = 0f
+      _videoPanY.value = 0f
+      MPVLib.setPropertyDouble("video-zoom", 0.0)
+      MPVLib.setPropertyDouble("video-pan-x", 0.0)
+      MPVLib.setPropertyDouble("video-pan-y", 0.0)
     }
 
     val prefAdvancedZoomEnabled = playerPreferences.advancedZoomEnabled.get()
     _advancedZoomEnabled.value = prefAdvancedZoomEnabled
-    if (prefAdvancedZoomEnabled) {
+    if (prefAdvancedZoomEnabled && !rememberVideoZoom) {
       val prefScaleX = playerPreferences.defaultVideoScaleX.get()
       val prefScaleY = playerPreferences.defaultVideoScaleY.get()
       MPVLib.setPropertyDouble("video-scale-x", prefScaleX.toDouble())
@@ -1457,6 +1460,10 @@ class PlayerViewModel(
     aspect: VideoAspect,
     customAspectRatio: Double,
     zoom: Float,
+    panX: Float = 0f,
+    panY: Float = 0f,
+    scaleX: Float = 1f,
+    scaleY: Float = 1f,
   ) {
     _cachedVideoRotation = MPVLib.getPropertyInt("video-params/rotate") ?: 0
 
@@ -1477,6 +1484,11 @@ class PlayerViewModel(
     }
 
     setVideoZoom(zoom, persistToPreferences = false)
+    setVideoPan(panX, panY)
+    if (_advancedZoomEnabled.value || scaleX != 1f || scaleY != 1f) {
+      setVideoScaleX(scaleX)
+      setVideoScaleY(scaleY)
+    }
   }
 
   fun changeVideoAspect(
@@ -1667,7 +1679,7 @@ class PlayerViewModel(
     _videoZoom.value = zoom
     MPVLib.setPropertyDouble("video-zoom", zoom.toDouble())
 
-    if (persistToPreferences && playerPreferences.rememberVideoAspect.get()) {
+    if (persistToPreferences && playerPreferences.rememberVideoAspect.get() && !playerPreferences.rememberVideoZoom.get()) {
       playerPreferences.defaultVideoZoom.set(zoom)
     }
   }

@@ -162,6 +162,12 @@ class PlayerPreferences(
    */
   val rememberVideoAspect = preferenceStore.getBoolean("remember_video_aspect", false)
 
+  /**
+   * Whether video zoom and pan adjustments made during playback should persist individually
+   * per video rather than applying a single global setting across all videos.
+   */
+  val rememberVideoZoom = preferenceStore.getBoolean("remember_video_zoom", true)
+
   // Custom Buttons - JSON List
   val customButtons = preferenceStore.getString("custom_buttons_json", "[]")
 

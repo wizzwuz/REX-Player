@@ -80,6 +80,7 @@ object PlayerPreferencesScreen : Screen {
             val orientation by preferences.orientation.collectAsState()
             val defaultVideoAspect by preferences.defaultVideoAspect.collectAsState()
             val rememberVideoAspect by preferences.rememberVideoAspect.collectAsState()
+            val rememberVideoZoom by preferences.rememberVideoZoom.collectAsState()
             val resumePlaybackMode by preferences.resumePlaybackMode.collectAsState()
             val autoResumeOnAsk by preferences.autoResumeOnAsk.collectAsState()
             val closeAfterEndOfVideo by preferences.closeAfterReachingEndOfVideo.collectAsState()
@@ -146,6 +147,24 @@ object PlayerPreferencesScreen : Screen {
                   summary = {
                     Text(
                       text = stringResource(R.string.pref_player_remember_aspect_ratio_summary),
+                      color = MaterialTheme.colorScheme.outline,
+                    )
+                  },
+                )
+              }
+
+              GroupedPreferenceCard(
+                color = cardColor, tonalElevation = 0.dp,
+                position = GroupPosition.MIDDLE,
+                highlightKey = R.string.pref_player_remember_video_zoom,
+              ) {
+                SwitchPreference(
+                  value = rememberVideoZoom,
+                  onValueChange = preferences.rememberVideoZoom::set,
+                  title = { Text(text = stringResource(R.string.pref_player_remember_video_zoom)) },
+                  summary = {
+                    Text(
+                      text = stringResource(R.string.pref_player_remember_video_zoom_summary),
                       color = MaterialTheme.colorScheme.outline,
                     )
                   },

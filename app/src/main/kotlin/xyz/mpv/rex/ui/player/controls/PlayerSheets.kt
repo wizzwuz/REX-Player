@@ -406,15 +406,21 @@ fun PlayerSheets(
         videoPanY = videoPanY,
         onZoomChange = { zoom ->
           viewModel.setVideoZoom(zoom)
-          playerPreferences.defaultVideoZoom.set(zoom)
+          if (!playerPreferences.rememberVideoZoom.get()) {
+            playerPreferences.defaultVideoZoom.set(zoom)
+          }
         },
         onPanXChange = { panX ->
           viewModel.setVideoPan(panX, viewModel.videoPanY.value)
-          playerPreferences.defaultVideoPanX.set(panX)
+          if (!playerPreferences.rememberVideoZoom.get()) {
+            playerPreferences.defaultVideoPanX.set(panX)
+          }
         },
         onPanYChange = { panY ->
           viewModel.setVideoPan(viewModel.videoPanX.value, panY)
-          playerPreferences.defaultVideoPanY.set(panY)
+          if (!playerPreferences.rememberVideoZoom.get()) {
+            playerPreferences.defaultVideoPanY.set(panY)
+          }
         },
         advancedZoomEnabled = advancedZoomEnabled,
         videoScaleX = videoScaleX,
@@ -429,10 +435,16 @@ fun PlayerSheets(
         },
         onScaleXChange = { scale ->
           viewModel.setVideoScaleX(scale)
-          playerPreferences.defaultVideoScaleX.set(scale)
+          if (!playerPreferences.rememberVideoZoom.get()) {
+            playerPreferences.defaultVideoScaleX.set(scale)
+          }
         },
         onScaleYChange = { scale ->
           viewModel.setVideoScaleY(scale)
+          if (!playerPreferences.rememberVideoZoom.get()) {
+            playerPreferences.defaultVideoScaleY.set(scale)
+          }
+        },
           playerPreferences.defaultVideoScaleY.set(scale)
         },
         onResetAdvancedZoom = {

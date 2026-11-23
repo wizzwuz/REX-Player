@@ -42,6 +42,12 @@ class PlayerPlaybackStateController(
   var isPlaybackStateLoaded: Boolean = false
 
   @Volatile
+  var currentSavedSubPos: Int? = null
+
+  @Volatile
+  var currentSavedSecondarySubPos: Int? = null
+
+  @Volatile
   private var activeVisualsUseSharedMode = activity.playerPreferences.rememberVideoAspect.get()
 
   var savePlaybackStateJob: Job? = null
@@ -63,9 +69,16 @@ class PlayerPlaybackStateController(
     val currentSpeed = MPVLib.getPropertyDouble("speed") ?: DEFAULT_PLAYBACK_SPEED
     val isStateLoaded = isPlaybackStateLoaded
     val currentZoom = activity.viewModel.videoZoom.value
+    val currentPanX = activity.viewModel.videoPanX.value
+    val currentPanY = activity.viewModel.videoPanY.value
+    val currentScaleX = activity.viewModel.videoScaleX.value
+    val currentScaleY = activity.viewModel.videoScaleY.value
     val currentAspect = activity.viewModel.videoAspect.value.name
     val currentCustomRatio = activity.viewModel.currentAspectRatio.value
     val rememberSharedVisuals = activeVisualsUseSharedMode
+    val rememberVideoZoom = activity.playerPreferences.rememberVideoZoom.get()
+    val currentSubPos = runCatching { MPVLib.getPropertyInt("sub-pos") }.getOrNull()
+    val currentSecondarySubPos = runCatching { MPVLib.getPropertyInt("secondary-sub-pos") }.getOrNull()
     val currentSid = activity.player.sid
     val currentSecondarySid = activity.player.secondarySid
     val currentAid = activity.player.aid
@@ -90,9 +103,39 @@ class PlayerPlaybackStateController(
         Log.d(TAG, "Saving playback state for: $mediaTitle (identifier: $identifier) at position: $currentPos")
 
         val currentZoomToSave = when {
-          rememberSharedVisuals -> oldState?.videoZoom ?: 0f
+          !rememberVideoZoom -> oldState?.videoZoom ?: 0f
           isStateLoaded -> currentZoom
           else -> oldState?.videoZoom ?: currentZoom
+        }
+        val currentPanXToSave = when {
+          !rememberVideoZoom -> oldState?.videoPanX ?: 0f
+          isStateLoaded -> currentPanX
+          else -> oldState?.videoPanX ?: currentPanX
+        }
+        val currentPanYToSave = when {
+          !rememberVideoZoom -> oldState?.videoPanY ?: 0f
+          isStateLoaded -> currentPanY
+          else -> oldState?.videoPanY ?: currentPanY
+        }
+        val currentScaleXToSave = when {
+          !rememberVideoZoom -> oldState?.videoScaleX ?: 1f
+          isStateLoaded -> currentScaleX
+          else -> oldState?.videoScaleX ?: currentScaleX
+        }
+        val currentScaleYToSave = when {
+          !rememberVideoZoom -> oldState?.videoScaleY ?: 1f
+          isStateLoaded -> currentScaleY
+          else -> oldState?.videoScaleY ?: currentScaleY
+        }
+        val currentSubPosToSave = if (isStateLoaded) {
+          currentSubPos ?: oldState?.subPos
+        } else {
+          oldState?.subPos
+        }
+        val currentSecondarySubPosToSave = if (isStateLoaded) {
+          currentSecondarySubPos ?: oldState?.secondarySubPos
+        } else {
+          oldState?.secondarySubPos
         }
         val currentAspectToSave = when {
           rememberSharedVisuals -> oldState?.videoAspect ?: VideoAspect.Fit.name
@@ -130,10 +173,16 @@ class PlayerPlaybackStateController(
             lastPosition = savePos,
             playbackSpeed = currentSpeed,
             videoZoom = currentZoomToSave,
+            videoPanX = currentPanXToSave,
+            videoPanY = currentPanYToSave,
+            videoScaleX = currentScaleXToSave,
+            videoScaleY = currentScaleYToSave,
             sid = currentSid,
             secondarySid = currentSecondarySid,
             subDelay = (currentSubDelay * MILLISECONDS_TO_SECONDS).toInt(),
             subSpeed = currentSubSpeed,
+            subPos = currentSubPosToSave,
+            secondarySubPos = currentSecondarySubPosToSave,
             aid = currentAid,
             audioDelay = (currentAudioDelay * MILLISECONDS_TO_SECONDS).toInt(),
             timeRemaining = timeRemaining,
@@ -338,6 +387,16 @@ class PlayerPlaybackStateController(
     MPVLib.setPropertyDouble("audio-delay", audioDelay)
     MPVLib.setPropertyDouble("sub-speed", state.subSpeed)
 
+    // Restore subtitle positions for individual video
+    currentSavedSubPos = state.subPos
+    currentSavedSecondarySubPos = state.secondarySubPos
+    if (state.subPos != null) {
+      MPVLib.setPropertyInt("sub-pos", state.subPos)
+    }
+    if (state.secondarySubPos != null) {
+      MPVLib.setPropertyInt("secondary-sub-pos", state.secondarySubPos)
+    }
+
     // Restore orientation if in Smart mode
     if (activity.playerPreferences.orientation.get() == PlayerOrientation.Smart && state.savedOrientation != null) {
       withContext(Dispatchers.Main) {
@@ -352,8 +411,14 @@ class PlayerPlaybackStateController(
 
   private fun restoreVideoAspectAndZoom(state: PlaybackStateEntity?) {
     val rememberSharedVisuals = activity.playerPreferences.rememberVideoAspect.get()
+    val rememberVideoZoom = activity.playerPreferences.rememberVideoZoom.get()
     activeVisualsUseSharedMode = rememberSharedVisuals
     val defaultZoom = activity.playerPreferences.defaultVideoZoom.get()
+    val defaultPanX = activity.playerPreferences.defaultVideoPanX.get()
+    val defaultPanY = activity.playerPreferences.defaultVideoPanY.get()
+    val defaultScaleX = activity.playerPreferences.defaultVideoScaleX.get()
+    val defaultScaleY = activity.playerPreferences.defaultVideoScaleY.get()
+
     val aspect = if (rememberSharedVisuals) {
       activity.playerPreferences.defaultVideoAspect.get()
     } else {
@@ -366,10 +431,15 @@ class PlayerPlaybackStateController(
     } else {
       state?.customAspectRatio ?: -1.0
     }
-    val zoom = if (rememberSharedVisuals) defaultZoom else state?.videoZoom ?: 0f
+
+    val zoom = if (rememberVideoZoom) (state?.videoZoom ?: 0f) else defaultZoom
+    val panX = if (rememberVideoZoom) (state?.videoPanX ?: 0f) else defaultPanX
+    val panY = if (rememberVideoZoom) (state?.videoPanY ?: 0f) else defaultPanY
+    val scaleX = if (rememberVideoZoom) (state?.videoScaleX ?: 1f) else defaultScaleX
+    val scaleY = if (rememberVideoZoom) (state?.videoScaleY ?: 1f) else defaultScaleY
 
     isPlaybackStateLoaded = true
-    activity.viewModel.restoreAspectAndZoom(aspect, customAspectRatio, zoom)
+    activity.viewModel.restoreAspectAndZoom(aspect, customAspectRatio, zoom, panX, panY, scaleX, scaleY)
   }
 
   private suspend fun applyResumePosition(

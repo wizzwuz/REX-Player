@@ -42,7 +42,7 @@ import xyz.mpv.rex.domain.network.NetworkConnection
     BookmarkEntity::class,
     FolderAggregateEntity::class,
   ],
-  version = 20,
+  version = 21,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)
