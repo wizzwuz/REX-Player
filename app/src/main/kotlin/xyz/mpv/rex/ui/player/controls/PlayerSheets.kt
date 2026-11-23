@@ -445,8 +445,6 @@ fun PlayerSheets(
             playerPreferences.defaultVideoScaleY.set(scale)
           }
         },
-          playerPreferences.defaultVideoScaleY.set(scale)
-        },
         onResetAdvancedZoom = {
           viewModel.resetAdvancedZoom()
           playerPreferences.defaultVideoScaleX.set(1f)
