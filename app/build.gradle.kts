@@ -41,29 +41,31 @@ android {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-      isUniversalApk = true
+      val targetAbi = if (project.hasProperty("targetAbi")) project.property("targetAbi") as String else "arm64-v8a"
+      if (targetAbi.isNotEmpty() && targetAbi != "all") {
+        include(targetAbi)
+        isUniversalApk = false
+      } else {
+        include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        isUniversalApk = true
+      }
     }
   }
 
   signingConfigs {
     create("release") {
-      if (project.hasProperty("releaseKeyStore")) {
-        storeFile = file(project.property("releaseKeyStore") as String)
-        storePassword = project.property("releaseKeyStorePassword") as String
-        keyAlias = project.property("releaseKeyAlias") as String
-        keyPassword = project.property("releaseKeyPassword") as String
-      }
+      storeFile = file("release.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
     }
   }
 
   buildTypes {
     named("release") {
-      if (project.hasProperty("releaseKeyStore")) {
-        signingConfig = signingConfigs.getByName("release")
-      }
       isMinifyEnabled = true
       isShrinkResources = true
+      signingConfig = if (file("release.keystore").exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
       proguardFiles(
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard-rules.pro"

@@ -35,57 +35,37 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PtargetAbi=arm64-v8a
 
-      - name: Sign APKs with Debug Keystore
+      - name: Sign APK with Release Keystore
         run: |
           set -e
-          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
           echo "Using apksigner: $APKSIGNER"
-          for abi in arm64-v8a armeabi-v7a universal x86 x86_64; do
-            src="app/build/outputs/apk/release/app-${abi}-release-unsigned.apk"
-            signed="app/build/outputs/apk/release/app-${abi}-release.apk"
-            if [ -f "$src" ]; then
-              $APKSIGNER sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out "$signed" "$src"
-              $APKSIGNER verify "$signed"
-            fi
-          done
+          apk_dir="app/build/outputs/apk/release"
+          unsigned="$apk_dir/app-arm64-v8a-release-unsigned.apk"
+          signed="$apk_dir/app-arm64-v8a-release.apk"
+          if [ -f "$unsigned" ] && [ ! -f "$signed" ]; then
+            echo "Signing $unsigned with app/release.keystore..."
+            $APKSIGNER sign --ks app/release.keystore \
+              --ks-key-alias "androiddebugkey" \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --out "$signed" "$unsigned"
+          fi
+          if [ -f "$signed" ]; then
+            echo "Verifying $signed..."
+            $APKSIGNER verify --verbose "$signed"
+          else
+            echo "Error: Neither $signed nor $unsigned was found"
+            exit 1
+          fi
 
       - name: Upload app-arm64-v8a Signed Artifact
         uses: actions/upload-artifact@v4
         with:
           name: REX-Player-arm64-v8a-release-${{ env.SHORT_SHA }}
           path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
-
-      - name: Upload app-universal Signed Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-universal-release-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-universal-release.apk
-
-      - name: Upload app-arm64-v8a Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-arm64-v8a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-      - name: Upload app-armeabi-v7a Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-armeabi-v7a-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-      - name: Upload app-universal Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-universal-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-universal-release-unsigned.apk
-      - name: Upload app-x86 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-x86-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86-release-unsigned.apk
-      - name: Upload app-x86_64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: REX-Player-x86_64-release-unsigned-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/release/app-x86_64-release-unsigned.apk
